@@ -2,6 +2,13 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { ChatMessage } from "../types";
 
+// Fix for TypeScript build error regarding process
+declare var process: {
+  env: {
+    API_KEY: string | undefined;
+  }
+};
+
 const MENTOR_SYSTEM_INSTRUCTION = `
 You are “SkillShift AI Mentor”.
 Your role is to guide confused Gen Z users (16–30) calmly and practically.
@@ -116,6 +123,11 @@ Return ONLY valid JSON. No explanation. No markdown. No SMS sending.
 
 export const sendMessageToMentor = async (history: ChatMessage[]): Promise<string> => {
   try {
+    if (!process.env.API_KEY) {
+      console.error("API Key is missing in environment variables.");
+      return "System Error: API Key missing. Please configure Netlify Environment Variables.";
+    }
+
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const contents = history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
@@ -132,14 +144,22 @@ export const sendMessageToMentor = async (history: ChatMessage[]): Promise<strin
     });
 
     return response.text || "Sorry, glitch in the matrix. Try again?";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Error:", error);
+    if (error.message?.includes("API key")) {
+      return "Authentication Error: Invalid API Key.";
+    }
     return "Network issue. Connection check karke retry karo?";
   }
 };
 
 export const generateDetailedRoadmap = async (profile: any): Promise<any> => {
   try {
+    if (!process.env.API_KEY) {
+      console.error("API Key is missing.");
+      return null;
+    }
+
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Construct a more specific prompt if it's just a skill choice
@@ -165,6 +185,8 @@ export const generateDetailedRoadmap = async (profile: any): Promise<any> => {
 
 export const processOTPLogic = async (action: 'GENERATE' | 'VERIFY', data: any): Promise<any> => {
   try {
+    if (!process.env.API_KEY) return null;
+
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = action === 'GENERATE' 
       ? "Generate a new 6-digit OTP for a login session." 
