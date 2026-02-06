@@ -118,7 +118,7 @@ export const sendMessageToMentor = async (history: ChatMessage[]): Promise<strin
   try {
     if (!process.env.API_KEY) {
       console.error("API Key is missing in environment variables.");
-      return "System Error: API Key missing. Please configure Netlify Environment Variables.";
+      return "System Error: API Key missing. Netlify Environment Variable set karne ke baad 'Re-deploy' zaroori hai.";
     }
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -140,7 +140,7 @@ export const sendMessageToMentor = async (history: ChatMessage[]): Promise<strin
   } catch (error: any) {
     console.error("Gemini Error:", error);
     if (error.message?.includes("API key")) {
-      return "Authentication Error: Invalid API Key.";
+      return "Authentication Error: Invalid API Key. Check Google Console.";
     }
     return "Network issue. Connection check karke retry karo?";
   }
