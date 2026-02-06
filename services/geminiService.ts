@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { ChatMessage } from "../types";
 
 const MENTOR_SYSTEM_INSTRUCTION = `
@@ -116,12 +116,15 @@ Return ONLY valid JSON. No explanation. No markdown. No SMS sending.
 
 export const sendMessageToMentor = async (history: ChatMessage[]): Promise<string> => {
   try {
-    if (!process.env.API_KEY) {
-      console.error("API Key is missing in environment variables.");
-      return "System Error: API Key missing. Netlify Environment Variable set karne ke baad 'Re-deploy' zaroori hai.";
+    // Direct check on the injected variable
+    const key = process.env.API_KEY;
+
+    if (!key || key.trim() === '') {
+      console.error("API Key is missing in build.");
+      return "⚠️ SYSTEM ERROR: API Key Saved but NOT Active.\n\nSolution (Zaroori hai):\n1. Netlify Dashboard par jao.\n2. 'Deploys' tab kholo.\n3. 'Trigger deploy' click karo aur 'Clear cache and deploy' chuno.\n4. Jab 'Published' ho jaye, tab yahan refresh karo.";
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: key });
     const contents = history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }]
@@ -140,7 +143,7 @@ export const sendMessageToMentor = async (history: ChatMessage[]): Promise<strin
   } catch (error: any) {
     console.error("Gemini Error:", error);
     if (error.message?.includes("API key")) {
-      return "Authentication Error: Invalid API Key. Check Google Console.";
+      return "Authentication Error: Invalid API Key. Please check Google AI Studio key.";
     }
     return "Network issue. Connection check karke retry karo?";
   }
@@ -148,12 +151,13 @@ export const sendMessageToMentor = async (history: ChatMessage[]): Promise<strin
 
 export const generateDetailedRoadmap = async (profile: any): Promise<any> => {
   try {
-    if (!process.env.API_KEY) {
+    const key = process.env.API_KEY;
+    if (!key || key.trim() === '') {
       console.error("API Key is missing.");
       return null;
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: key });
     
     // Construct a more specific prompt if it's just a skill choice
     const prompt = typeof profile === 'string' 
@@ -178,9 +182,10 @@ export const generateDetailedRoadmap = async (profile: any): Promise<any> => {
 
 export const processOTPLogic = async (action: 'GENERATE' | 'VERIFY', data: any): Promise<any> => {
   try {
-    if (!process.env.API_KEY) return null;
+    const key = process.env.API_KEY;
+    if (!key || key.trim() === '') return null;
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: key });
     const prompt = action === 'GENERATE' 
       ? "Generate a new 6-digit OTP for a login session." 
       : `Verify if this OTP: ${data.inputOTP} matches the stored hash/code: ${data.storedCode}.`;
