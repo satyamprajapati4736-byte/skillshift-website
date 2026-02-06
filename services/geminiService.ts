@@ -2,13 +2,6 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { ChatMessage } from "../types";
 
-// Fix for TypeScript build error regarding process
-declare var process: {
-  env: {
-    API_KEY: string | undefined;
-  }
-};
-
 const MENTOR_SYSTEM_INSTRUCTION = `
 You are “SkillShift AI Mentor”.
 Your role is to guide confused Gen Z users (16–30) calmly and practically.

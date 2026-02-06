@@ -5,22 +5,21 @@ import react from '@vitejs/plugin-react';
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
-  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, (process as any).cwd(), '');
 
-  // Check if API_KEY is available during build
+  // SECURITY: Only use Environment Variable. No hardcoding.
   const apiKey = env.API_KEY || process.env.API_KEY;
 
   if (!apiKey) {
-    console.warn("⚠️ WARNING: API_KEY is missing in build environment. The app will not function correctly without it.");
+    console.warn("⚠️ WARNING: API_KEY is missing. App will not function correctly until configured in Netlify.");
   }
 
   return {
     plugins: [react()],
     define: {
-      // Polyfill process.env.API_KEY with the value found during build
+      // This injects the key into the code during the build process
       'process.env.API_KEY': JSON.stringify(apiKey),
-      // Prevent other process.env access from crashing in browser
+      // Prevents crash when accessing other process.env variables
       'process.env': {}
     }
   };
