@@ -28,8 +28,11 @@ export const authService = {
       localStorage.setItem(SESSION_KEY, JSON.stringify(user));
       return user;
     } catch (error: any) {
+      console.error("Firebase Login Error Details:", error);
       if (error.code === 'auth/unauthorized-domain') {
-        throw new Error("Domain Unauthorized: Please add your Netlify URL to Firebase Console > Authentication > Settings > Authorized Domains.");
+        // Fallback to origin if hostname is empty (common in some mobile browsers/webviews)
+        const detected = window.location.hostname || window.location.origin.replace(/^https?:\/\//, '');
+        throw new Error(`AUTH_DOMAIN_ERROR:${detected || 'unknown'}`);
       }
       throw error;
     }
@@ -43,7 +46,8 @@ export const authService = {
       return user;
     } catch (error: any) {
       if (error.code === 'auth/unauthorized-domain') {
-        throw new Error("Domain Unauthorized: Please add your Netlify URL to Firebase Console.");
+        const detected = window.location.hostname || 'unknown';
+        throw new Error(`AUTH_DOMAIN_ERROR:${detected}`);
       }
       throw error;
     }
@@ -65,7 +69,8 @@ export const authService = {
       return existing as User;
     } catch (error: any) {
       if (error.code === 'auth/unauthorized-domain') {
-        throw new Error("Domain Unauthorized: Add Netlify URL in Firebase Settings.");
+        const detected = window.location.hostname || 'unknown';
+        throw new Error(`AUTH_DOMAIN_ERROR:${detected}`);
       }
       throw error;
     }

@@ -19,19 +19,24 @@ const ProfileEntry: React.FC<ProfileEntryProps> = ({ onSuccess, onBack, redirect
   const [gender, setGender] = useState<Gender | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError('');
+    setUnauthorizedDomain(null);
     try {
       const user = await authService.loginWithGoogle();
       onSuccess(user);
     } catch (err: any) {
       console.error(err);
-      if (err.message.includes("Domain Unauthorized")) {
-        setError("Setup Needed: Add this Netlify URL to Firebase Console > Authentication > Settings > Authorized Domains.");
+      if (err.message.startsWith("AUTH_DOMAIN_ERROR:")) {
+        const domain = err.message.split(":")[1];
+        setUnauthorizedDomain(domain);
+        setError(`Domain "${domain}" is not authorized.`);
       } else {
-        setError("Login failed. Check your connection.");
+        setError("Login failed. Chrome ya Safari mein open karke try karo.");
       }
     } finally {
       setLoading(false);
@@ -42,6 +47,7 @@ const ProfileEntry: React.FC<ProfileEntryProps> = ({ onSuccess, onBack, redirect
     e.preventDefault();
     setLoading(true);
     setError('');
+    setUnauthorizedDomain(null);
     try {
       if (mode === 'EMAIL_SIGNUP') {
         if (!gender) throw new Error("Select gender");
@@ -53,9 +59,23 @@ const ProfileEntry: React.FC<ProfileEntryProps> = ({ onSuccess, onBack, redirect
         onSuccess(user);
       }
     } catch (err: any) {
-      setError(err.message || "Auth failed.");
+      if (err.message.startsWith("AUTH_DOMAIN_ERROR:")) {
+        const domain = err.message.split(":")[1];
+        setUnauthorizedDomain(domain);
+        setError(`Domain "${domain}" is not authorized.`);
+      } else {
+        setError(err.message || "Auth failed.");
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const copyToClipboard = () => {
+    if (unauthorizedDomain) {
+      navigator.clipboard.writeText(unauthorizedDomain);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
     }
   };
 
@@ -75,8 +95,36 @@ const ProfileEntry: React.FC<ProfileEntryProps> = ({ onSuccess, onBack, redirect
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-2xl text-xs font-medium animate-shake text-center leading-relaxed">
-          {error}
+        <div className="flex flex-col gap-3">
+          <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-2xl text-[11px] font-bold animate-shake text-center leading-relaxed">
+            {error}
+          </div>
+          {unauthorizedDomain && (
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl flex flex-col gap-4 shadow-2xl">
+              <div className="flex items-center justify-between">
+                 <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Verify Domain</span>
+                 <button onClick={() => window.location.reload()} className="text-[10px] text-blue-400 font-bold uppercase underline">Refresh Page</button>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Aapki site abhi Firebase mein allowed nahi hai. Yeh exact URL copy karke Firebase mein check karein:
+              </p>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 font-mono text-[10px] text-pink-400 break-all">
+                {unauthorizedDomain}
+              </div>
+              <button 
+                onClick={copyToClipboard}
+                className={`w-full py-4 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                  copySuccess ? 'bg-green-600 text-white shadow-[0_0_20px_rgba(22,163,74,0.4)]' : 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:scale-[1.02]'
+                }`}
+              >
+                {copySuccess ? 'URL Copied!' : 'Copy This Domain'}
+                {!copySuccess && <Icons.Check />}
+              </button>
+              <p className="text-[10px] text-slate-500 text-center italic">
+                Note: Domain add karne ke baad 1-2 minute wait karke refresh karein.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
