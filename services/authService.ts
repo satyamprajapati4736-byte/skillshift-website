@@ -28,11 +28,10 @@ export const authService = {
       localStorage.setItem(SESSION_KEY, JSON.stringify(user));
       return user;
     } catch (error: any) {
-      console.error("Firebase Login Error Details:", error);
-      if (error.code === 'auth/unauthorized-domain') {
-        // Fallback to origin if hostname is empty (common in some mobile browsers/webviews)
-        const detected = window.location.hostname || window.location.origin.replace(/^https?:\/\//, '');
-        throw new Error(`AUTH_DOMAIN_ERROR:${detected || 'unknown'}`);
+      console.error("Firebase Auth Error Object:", error);
+      if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized domain')) {
+        const detected = window.location.hostname || window.location.host || "skillshift-app";
+        throw new Error(`AUTH_DOMAIN_ERROR:${detected}`);
       }
       throw error;
     }
@@ -46,7 +45,7 @@ export const authService = {
       return user;
     } catch (error: any) {
       if (error.code === 'auth/unauthorized-domain') {
-        const detected = window.location.hostname || 'unknown';
+        const detected = window.location.hostname || "skillshift-app";
         throw new Error(`AUTH_DOMAIN_ERROR:${detected}`);
       }
       throw error;
@@ -69,7 +68,7 @@ export const authService = {
       return existing as User;
     } catch (error: any) {
       if (error.code === 'auth/unauthorized-domain') {
-        const detected = window.location.hostname || 'unknown';
+        const detected = window.location.hostname || "skillshift-app";
         throw new Error(`AUTH_DOMAIN_ERROR:${detected}`);
       }
       throw error;

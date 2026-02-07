@@ -31,20 +31,27 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authRedirectMessage, setAuthRedirectMessage] = useState<string | null>(null);
 
+  // Initialize App and Auth only once
   useEffect(() => {
-    // Sync local user from authService
+    // 1. Sync local user from authService
     const currentUser = authService.getCurrentUser();
     if (currentUser) setUser(currentUser);
 
-    // Subscribe to Firebase Auth changes
+    // 2. Subscribe to Firebase Auth changes
     const unsubscribe = authService.onAuthUpdate((fbUser) => {
-      if (!fbUser && user) {
-        setUser(null);
-        setCurrentPage(Page.HOME);
+      if (!fbUser) {
+        // Only reset if they were previously logged in
+        setUser(prev => {
+          if (prev) {
+            setCurrentPage(Page.HOME);
+            return null;
+          }
+          return prev;
+        });
       }
     });
     
-    // Secret URL detection
+    // 3. Secret URL detection
     const path = window.location.pathname;
     if (path === '/admin-overview' || path === '/hidden-admin-panel') {
       setCurrentPage(Page.ADMIN_DASHBOARD);
@@ -56,12 +63,14 @@ const App: React.FC = () => {
       setCurrentPage(Page.ADMIN_MONTHLY_REPORT);
     }
 
-    const timer = setTimeout(() => setIsLoaded(true), 800);
+    // 4. Force loading to end
+    const timer = setTimeout(() => setIsLoaded(true), 1200);
+    
     return () => {
       clearTimeout(timer);
       unsubscribe();
     };
-  }, [user]);
+  }, []); // Empty dependency array is critical to stop the loop
 
   const handlePageChange = (page: Page, message?: string) => {
     if (page === Page.ROADMAPS && !user) {
@@ -119,10 +128,10 @@ const App: React.FC = () => {
         <ProgressRing size="w-16 h-16" />
         <div className="flex flex-col items-center gap-2">
           <h1 className="text-3xl font-bold font-heading tracking-tight text-white opacity-90">SkillShift</h1>
-          <div className="flex gap-1.5">
-             <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce"></div>
-             <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce delay-100"></div>
-             <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce delay-200"></div>
+          <div className="flex gap-1.5 text-blue-500">
+             <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce"></div>
+             <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce delay-100"></div>
+             <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce delay-200"></div>
           </div>
         </div>
       </div>
