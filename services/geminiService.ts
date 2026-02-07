@@ -114,17 +114,11 @@ STRICT RULE:
 Return ONLY valid JSON. No explanation. No markdown. No SMS sending.
 `;
 
+// Initialize Gemini with the API key from process.env as per guidelines
 export const sendMessageToMentor = async (history: ChatMessage[]): Promise<string> => {
   try {
-    // Direct check on the injected variable
-    const key = process.env.API_KEY;
-
-    if (!key || key.trim() === '') {
-      console.error("API Key is missing in build.");
-      return "⚠️ SYSTEM ERROR: API Key Saved but NOT Active.\n\nSolution (Zaroori hai):\n1. Netlify Dashboard par jao.\n2. 'Deploys' tab kholo.\n3. 'Trigger deploy' click karo aur 'Clear cache and deploy' chuno.\n4. Jab 'Published' ho jaye, tab yahan refresh karo.";
-    }
-
-    const ai = new GoogleGenAI({ apiKey: key });
+    // Guidelines: Always use new GoogleGenAI({ apiKey: process.env.API_KEY })
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const contents = history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }]
@@ -139,25 +133,18 @@ export const sendMessageToMentor = async (history: ChatMessage[]): Promise<strin
       }
     });
 
+    // Guidelines: Use response.text (property) to get text content
     return response.text || "Sorry, glitch in the matrix. Try again?";
   } catch (error: any) {
     console.error("Gemini Error:", error);
-    if (error.message?.includes("API key")) {
-      return "Authentication Error: Invalid API Key. Please check Google AI Studio key.";
-    }
     return "Network issue. Connection check karke retry karo?";
   }
 };
 
+// Roadmaps generation is a complex reasoning task, using gemini-3-pro-preview
 export const generateDetailedRoadmap = async (profile: any): Promise<any> => {
   try {
-    const key = process.env.API_KEY;
-    if (!key || key.trim() === '') {
-      console.error("API Key is missing.");
-      return null;
-    }
-
-    const ai = new GoogleGenAI({ apiKey: key });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Construct a more specific prompt if it's just a skill choice
     const prompt = typeof profile === 'string' 
@@ -165,7 +152,7 @@ export const generateDetailedRoadmap = async (profile: any): Promise<any> => {
       : `User profile data: ${JSON.stringify(profile)}. Select the absolute best skill from the pool and return the 30-day roadmap JSON.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         systemInstruction: ROADMAP_ENGINE_INSTRUCTION,
@@ -182,10 +169,7 @@ export const generateDetailedRoadmap = async (profile: any): Promise<any> => {
 
 export const processOTPLogic = async (action: 'GENERATE' | 'VERIFY', data: any): Promise<any> => {
   try {
-    const key = process.env.API_KEY;
-    if (!key || key.trim() === '') return null;
-
-    const ai = new GoogleGenAI({ apiKey: key });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = action === 'GENERATE' 
       ? "Generate a new 6-digit OTP for a login session." 
       : `Verify if this OTP: ${data.inputOTP} matches the stored hash/code: ${data.storedCode}.`;

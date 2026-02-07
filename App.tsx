@@ -18,27 +18,8 @@ import { authService } from './services/authService';
 export const ProgressRing = ({ size = "w-12 h-12" }: { size?: string }) => (
   <div className={`relative ${size} flex items-center justify-center`}>
     <svg className="w-full h-full animate-spin" viewBox="0 0 50 50">
-      <circle
-        className="opacity-10"
-        cx="25"
-        cy="25"
-        r="20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <circle
-        className="text-blue-500"
-        cx="25"
-        cy="25"
-        r="20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeDasharray="80"
-        strokeDashoffset="60"
-        strokeLinecap="round"
-      />
+      <circle className="opacity-10" cx="25" cy="25" r="20" fill="none" stroke="currentColor" strokeWidth="2" />
+      <circle className="text-blue-500" cx="25" cy="25" r="20" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="80" strokeDashoffset="60" strokeLinecap="round" />
     </svg>
     <div className="absolute inset-0 bg-blue-500/5 rounded-full blur-xl"></div>
   </div>
@@ -51,10 +32,17 @@ const App: React.FC = () => {
   const [authRedirectMessage, setAuthRedirectMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    // Sync local user from authService
     const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-    }
+    if (currentUser) setUser(currentUser);
+
+    // Subscribe to Firebase Auth changes
+    const unsubscribe = authService.onAuthUpdate((fbUser) => {
+      if (!fbUser && user) {
+        setUser(null);
+        setCurrentPage(Page.HOME);
+      }
+    });
     
     // Secret URL detection
     const path = window.location.pathname;
@@ -69,30 +57,26 @@ const App: React.FC = () => {
     }
 
     const timer = setTimeout(() => setIsLoaded(true), 800);
-    return () => clearTimeout(timer);
-  }, []);
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [user]);
 
   const handlePageChange = (page: Page, message?: string) => {
-    // Access control for roadmaps
     if (page === Page.ROADMAPS && !user) {
-      setAuthRedirectMessage(message || "Roadmap dekhne ke liye pehle apni basic details bharo.");
+      setAuthRedirectMessage(message || "Roadmap dekhne ke liye pehle login karo.");
       setCurrentPage(Page.PROFILE_ENTRY);
       return;
     }
-
-    // Reset message if going elsewhere
-    if (page !== Page.PROFILE_ENTRY) {
-      setAuthRedirectMessage(null);
-    }
-    
+    if (page !== Page.PROFILE_ENTRY) setAuthRedirectMessage(null);
     setCurrentPage(page);
   };
 
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await authService.logout();
     setUser(null);
     setCurrentPage(Page.HOME);
-    // Reset path if in admin
     if (window.location.pathname.includes('admin')) {
       window.history.pushState({}, '', '/');
     }
@@ -100,21 +84,11 @@ const App: React.FC = () => {
 
   const renderPage = () => {
     switch (currentPage) {
-      case Page.HOME:
-        return <Home onNavigate={handlePageChange} user={user} />;
-      case Page.MENTOR:
-        return <MentorChat />;
-      case Page.FINDER:
-        return <SkillFinder />;
-      case Page.ROADMAPS:
-        return (
-          <Roadmaps 
-            user={user} 
-            onAuthRequired={(msg) => handlePageChange(Page.PROFILE_ENTRY, msg)} 
-          />
-        );
-      case Page.BOOST:
-        return <DailyBoost />;
+      case Page.HOME: return <Home onNavigate={handlePageChange} user={user} />;
+      case Page.MENTOR: return <MentorChat />;
+      case Page.FINDER: return <SkillFinder />;
+      case Page.ROADMAPS: return <Roadmaps user={user} onAuthRequired={(msg) => handlePageChange(Page.PROFILE_ENTRY, msg)} />;
+      case Page.BOOST: return <DailyBoost />;
       case Page.PROFILE_ENTRY:
         return (
           <ProfileEntry 
@@ -129,21 +103,13 @@ const App: React.FC = () => {
         );
       case Page.PREPARING:
         return user ? (
-          <PreparingRoadmap 
-            user={user} 
-            onComplete={() => setCurrentPage(Page.ROADMAPS)} 
-          />
+          <PreparingRoadmap user={user} onComplete={() => setCurrentPage(Page.ROADMAPS)} />
         ) : <Home onNavigate={handlePageChange} user={null} />;
-      case Page.ADMIN_DASHBOARD:
-        return <AdminDashboard user={user} />;
-      case Page.ADMIN_REPORT:
-        return <AdminReport user={user} />;
-      case Page.ADMIN_WEEKLY_REPORT:
-        return <AdminWeeklyReport user={user} />;
-      case Page.ADMIN_MONTHLY_REPORT:
-        return <AdminMonthlyReport user={user} />;
-      default:
-        return <Home onNavigate={handlePageChange} user={user} />;
+      case Page.ADMIN_DASHBOARD: return <AdminDashboard user={user} />;
+      case Page.ADMIN_REPORT: return <AdminReport user={user} />;
+      case Page.ADMIN_WEEKLY_REPORT: return <AdminWeeklyReport user={user} />;
+      case Page.ADMIN_MONTHLY_REPORT: return <AdminMonthlyReport user={user} />;
+      default: return <Home onNavigate={handlePageChange} user={user} />;
     }
   };
 
@@ -164,12 +130,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout 
-      currentPage={currentPage} 
-      onPageChange={handlePageChange} 
-      user={user} 
-      onLogout={handleLogout}
-    >
+    <Layout currentPage={currentPage} onPageChange={handlePageChange} user={user} onLogout={handleLogout}>
       {renderPage()}
     </Layout>
   );
