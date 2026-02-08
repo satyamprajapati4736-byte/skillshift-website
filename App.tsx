@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Page, User } from './types';
 import Layout from './components/Layout';
@@ -33,44 +32,58 @@ const App: React.FC = () => {
 
   // Initialize App and Auth only once
   useEffect(() => {
-    // 1. Sync local user from authService
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) setUser(currentUser);
-
-    // 2. Subscribe to Firebase Auth changes
-    const unsubscribe = authService.onAuthUpdate((fbUser) => {
-      if (!fbUser) {
-        // Only reset if they were previously logged in
-        setUser(prev => {
-          if (prev) {
-            setCurrentPage(Page.HOME);
-            return null;
-          }
-          return prev;
-        });
+    const initAuth = async () => {
+      // 1. Check for redirect result (Google Login completion)
+      try {
+        const redirectedUser = await authService.handleRedirectResult();
+        if (redirectedUser) {
+          setUser(redirectedUser);
+          setCurrentPage(Page.PREPARING);
+        }
+      } catch (err) {
+        console.error("Redirect Error:", err);
       }
-    });
-    
-    // 3. Secret URL detection
-    const path = window.location.pathname;
-    if (path === '/admin-overview' || path === '/hidden-admin-panel') {
-      setCurrentPage(Page.ADMIN_DASHBOARD);
-    } else if (path === '/admin-daily-report') {
-      setCurrentPage(Page.ADMIN_REPORT);
-    } else if (path === '/admin-weekly-report') {
-      setCurrentPage(Page.ADMIN_WEEKLY_REPORT);
-    } else if (path === '/admin-monthly-report') {
-      setCurrentPage(Page.ADMIN_MONTHLY_REPORT);
-    }
 
-    // 4. Force loading to end
-    const timer = setTimeout(() => setIsLoaded(true), 1200);
+      // 2. Sync local user from authService
+      const currentUser = authService.getCurrentUser();
+      if (currentUser) setUser(currentUser);
+
+      // 3. Subscribe to Firebase Auth changes
+      const unsubscribe = authService.onAuthUpdate((fbUser) => {
+        if (!fbUser) {
+          setUser(prev => {
+            if (prev) {
+              setCurrentPage(Page.HOME);
+              return null;
+            }
+            return prev;
+          });
+        }
+      });
+      
+      // 4. Secret URL detection
+      const path = window.location.pathname;
+      if (path === '/admin-overview' || path === '/hidden-admin-panel') {
+        setCurrentPage(Page.ADMIN_DASHBOARD);
+      } else if (path === '/admin-daily-report') {
+        setCurrentPage(Page.ADMIN_REPORT);
+      } else if (path === '/admin-weekly-report') {
+        setCurrentPage(Page.ADMIN_WEEKLY_REPORT);
+      } else if (path === '/admin-monthly-report') {
+        setCurrentPage(Page.ADMIN_MONTHLY_REPORT);
+      }
+
+      // 5. Force loading to end
+      setIsLoaded(true);
+      return unsubscribe;
+    };
+
+    const unsubscribePromise = initAuth();
     
     return () => {
-      clearTimeout(timer);
-      unsubscribe();
+      unsubscribePromise.then(unsub => unsub?.());
     };
-  }, []); // Empty dependency array is critical to stop the loop
+  }, []); 
 
   const handlePageChange = (page: Page, message?: string) => {
     if (page === Page.ROADMAPS && !user) {

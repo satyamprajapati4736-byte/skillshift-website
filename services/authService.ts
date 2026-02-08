@@ -1,6 +1,7 @@
-
 import { 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut, 
@@ -13,27 +14,47 @@ import { dbService } from "./dbService";
 
 const SESSION_KEY = 'skillshift_current_user';
 
+const handleAuthError = (error: any) => {
+  console.error("Firebase Auth Error Full Object:", error);
+  const errorCode = error.code || 'unknown-error';
+  
+  if (errorCode === 'auth/unauthorized-domain' || 
+      error.message?.toLowerCase().includes('unauthorized domain')) {
+    const detected = window.location.hostname;
+    throw new Error(`AUTH_DOMAIN_ERROR:${detected}`);
+  }
+  
+  // Return the specific error code to show the user
+  throw new Error(`AUTH_FAILED:${errorCode}`);
+};
+
 export const authService = {
-  loginWithGoogle: async (): Promise<User> => {
+  loginWithGoogle: async (): Promise<void> => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const fbUser = result.user;
-      
-      const user = await dbService.createProfile(
-        fbUser.displayName || "Anonymous", 
-        fbUser.phoneNumber || "0000000000", 
-        'Other'
-      );
-      
-      localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-      return user;
+      // Use Redirect instead of Popup for 100% mobile success
+      await signInWithRedirect(auth, googleProvider);
     } catch (error: any) {
-      console.error("Firebase Auth Error Object:", error);
-      if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized domain')) {
-        const detected = window.location.hostname || window.location.host || "skillshift-app";
-        throw new Error(`AUTH_DOMAIN_ERROR:${detected}`);
+      handleAuthError(error);
+    }
+  },
+
+  handleRedirectResult: async (): Promise<User | null> => {
+    try {
+      const result = await getRedirectResult(auth);
+      if (result) {
+        const fbUser = result.user;
+        const user = await dbService.createProfile(
+          fbUser.displayName || "Anonymous", 
+          fbUser.phoneNumber || "0000000000", 
+          'Other'
+        );
+        localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+        return user;
       }
-      throw error;
+      return null;
+    } catch (error: any) {
+      handleAuthError(error);
+      return null;
     }
   },
 
@@ -44,18 +65,13 @@ export const authService = {
       localStorage.setItem(SESSION_KEY, JSON.stringify(user));
       return user;
     } catch (error: any) {
-      if (error.code === 'auth/unauthorized-domain') {
-        const detected = window.location.hostname || "skillshift-app";
-        throw new Error(`AUTH_DOMAIN_ERROR:${detected}`);
-      }
-      throw error;
+      return handleAuthError(error);
     }
   },
 
   signInWithEmail: async (email: string, pass: string): Promise<User> => {
     try {
       const result = await signInWithEmailAndPassword(auth, email, pass);
-      /* Fix: Await the async getAllUsers method */
       const users = await dbService.getAllUsers();
       const existing = users.find(u => u.name === result.user.displayName) || {
         id: result.user.uid,
@@ -68,11 +84,7 @@ export const authService = {
       localStorage.setItem(SESSION_KEY, JSON.stringify(existing));
       return existing as User;
     } catch (error: any) {
-      if (error.code === 'auth/unauthorized-domain') {
-        const detected = window.location.hostname || "skillshift-app";
-        throw new Error(`AUTH_DOMAIN_ERROR:${detected}`);
-      }
-      throw error;
+      return handleAuthError(error);
     }
   },
 
