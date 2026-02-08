@@ -127,7 +127,7 @@ const ProfileEntry: React.FC<ProfileEntryProps> = ({ onSuccess, onBack, redirect
           <div className="p-4 bg-slate-950/50 rounded-2xl border border-slate-800 space-y-2">
              <p className="text-[10px] text-slate-400 leading-relaxed">
                1. Go to <b>Firebase Console</b><br/>
-               2. Authentication -> Settings tab<br/>
+               2. Authentication {'->'} Settings tab<br/>
                3. <b>Authorized Domains</b> mein ye URL add karein.
              </p>
           </div>
