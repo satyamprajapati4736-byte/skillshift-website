@@ -44,6 +44,7 @@ export const authService = {
       if (result) {
         const fbUser = result.user;
         const user = await dbService.createProfile(
+          fbUser.uid,
           fbUser.displayName || "Anonymous", 
           fbUser.phoneNumber || "0000000000", 
           'Other'
@@ -61,7 +62,7 @@ export const authService = {
   signUpWithEmail: async (email: string, pass: string, name: string, gender: Gender, phone: string): Promise<User> => {
     try {
       const result = await createUserWithEmailAndPassword(auth, email, pass);
-      const user = await dbService.createProfile(name, phone, gender);
+      const user = await dbService.createProfile(result.user.uid, name, phone, gender);
       localStorage.setItem(SESSION_KEY, JSON.stringify(user));
       return user;
     } catch (error: any) {
@@ -72,15 +73,19 @@ export const authService = {
   signInWithEmail: async (email: string, pass: string): Promise<User> => {
     try {
       const result = await signInWithEmailAndPassword(auth, email, pass);
-      const users = await dbService.getAllUsers();
-      const existing = users.find(u => u.name === result.user.displayName) || {
-        id: result.user.uid,
-        name: result.user.displayName || "User",
-        phone: "0000000000",
-        gender: "Other" as Gender,
-        role: 'user',
-        created_at: new Date().toISOString()
-      };
+      let existing = await dbService.getUserProfile(result.user.uid);
+      
+      if (!existing) {
+        existing = {
+          id: result.user.uid,
+          name: result.user.displayName || "User",
+          phone: "0000000000",
+          gender: "Other" as Gender,
+          role: 'user',
+          created_at: new Date().toISOString()
+        };
+      }
+      
       localStorage.setItem(SESSION_KEY, JSON.stringify(existing));
       return existing as User;
     } catch (error: any) {

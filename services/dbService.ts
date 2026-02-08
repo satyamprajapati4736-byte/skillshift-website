@@ -4,6 +4,9 @@ import {
   query, 
   where, 
   addDoc, 
+  setDoc,
+  doc,
+  getDoc,
   orderBy, 
   limit
 } from "firebase/firestore";
@@ -13,26 +16,37 @@ import { RoadmapRecord, User, Gender } from "../types";
 const ADMIN_PHONES = ["7991500823", "9991234567", "9876543210"];
 
 export const dbService = {
-  createProfile: async (name: string, phone: string, gender: Gender): Promise<User> => {
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("phone", "==", phone), limit(1));
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-      const existingData = querySnapshot.docs[0].data() as User;
-      return { ...existingData, id: querySnapshot.docs[0].id };
+  // Get profile by UID - much faster and more reliable
+  getUserProfile: async (uid: string): Promise<User | null> => {
+    try {
+      const docRef = doc(db, "users", uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { ...docSnap.data(), id: docSnap.id } as User;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      return null;
     }
+  },
 
+  createProfile: async (uid: string, name: string, phone: string, gender: Gender): Promise<User> => {
+    // 1. Check if user already exists by UID
+    const existing = await dbService.getUserProfile(uid);
+    if (existing) return existing;
+
+    // 2. Create new profile using UID as Document ID
     const newUser: any = {
       name,
-      phone,
+      phone: phone || "0000000000",
       gender,
-      role: ADMIN_PHONES.includes(phone) ? 'admin' : 'user',
+      role: (phone && ADMIN_PHONES.includes(phone)) ? 'admin' : 'user',
       created_at: new Date().toISOString()
     };
     
-    const docRef = await addDoc(collection(db, "users"), newUser);
-    return { ...newUser, id: docRef.id };
+    await setDoc(doc(db, "users", uid), newUser);
+    return { ...newUser, id: uid };
   },
 
   getGlobalStats: async () => {

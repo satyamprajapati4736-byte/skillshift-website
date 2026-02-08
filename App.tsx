@@ -33,61 +33,47 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const initApp = async () => {
-      // 1. First, handle any redirect result (Google Login completion)
+      // 1. Handle any redirect result first (completion of Google Auth flow)
       try {
-        await authService.handleRedirectResult();
+        const redirectedUser = await authService.handleRedirectResult();
+        if (redirectedUser) {
+          setUser(redirectedUser);
+          // Don't set isLoaded yet, let the listener handle final state
+        }
       } catch (err) {
-        console.error("Redirect Result Error:", err);
+        console.error("Redirect Flow Error:", err);
       }
 
-      // 2. Set up the auth listener to be the source of truth
+      // 2. Auth state observer
       const unsubscribe = authService.onAuthUpdate(async (fbUser) => {
         if (fbUser) {
-          // Firebase says we are logged in. Now get the local profile.
-          const localUser = authService.getCurrentUser();
-          if (localUser && localUser.id === fbUser.uid) {
-            setUser(localUser);
+          // If logged in via Firebase, fetch the database profile
+          const profile = await dbService.getUserProfile(fbUser.uid);
+          if (profile) {
+            setUser(profile);
+            localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
           } else {
-            // Profile missing in session, fetch from DB or create
-            try {
-              const users = await dbService.getAllUsers();
-              const existing = users.find(u => u.id === fbUser.uid);
-              if (existing) {
-                setUser(existing);
-                localStorage.setItem('skillshift_current_user', JSON.stringify(existing));
-              } else {
-                // Create a stub profile if redirect result somehow missed it
-                const newUser = await dbService.createProfile(
-                  fbUser.displayName || "User",
-                  "0000000000",
-                  "Other"
-                );
-                setUser(newUser);
-                localStorage.setItem('skillshift_current_user', JSON.stringify(newUser));
-              }
-            } catch (dbErr) {
-              console.error("Profile Sync Error:", dbErr);
-            }
+            // Profile doesn't exist yet (should have been created by handleRedirectResult or signUp)
+            // But we can create a backup stub here if needed.
+            const backupProfile = await dbService.createProfile(fbUser.uid, fbUser.displayName || "User", "", "Other");
+            setUser(backupProfile);
+            localStorage.setItem('skillshift_current_user', JSON.stringify(backupProfile));
           }
         } else {
           setUser(null);
           localStorage.removeItem('skillshift_current_user');
         }
         
-        // Finalize loading once we know auth status
+        // ONLY mark as loaded once we have successfully determined the profile
         setIsLoaded(true);
       });
 
-      // 3. Secret URL detection
+      // 3. Admin Route Detection
       const path = window.location.pathname;
-      if (path === '/admin-overview' || path === '/hidden-admin-panel') {
+      if (path.includes('admin-overview') || path.includes('hidden-admin-panel')) {
         setCurrentPage(Page.ADMIN_DASHBOARD);
-      } else if (path === '/admin-daily-report') {
+      } else if (path.includes('admin-daily-report')) {
         setCurrentPage(Page.ADMIN_REPORT);
-      } else if (path === '/admin-weekly-report') {
-        setCurrentPage(Page.ADMIN_WEEKLY_REPORT);
-      } else if (path === '/admin-monthly-report') {
-        setCurrentPage(Page.ADMIN_MONTHLY_REPORT);
       }
 
       return unsubscribe;
