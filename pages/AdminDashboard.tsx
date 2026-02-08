@@ -1,17 +1,33 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { dbService } from '../services/dbService';
-import { User, RoadmapRecord, Page } from '../types';
+import { User, RoadmapRecord } from '../types';
+import { ProgressRing } from '../App';
 
 interface AdminDashboardProps {
   user: User | null;
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
-  const [filterType, setFilterType] = useState<'all' | 'today' | 'week'>('all');
-  const [searchSkill, setSearchSkill] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<{
+    totalUsers: number;
+    totalRoadmaps: number;
+    recentUsers: User[];
+    recentRoadmaps: RoadmapRecord[];
+  } | null>(null);
 
-  // Access Restriction Check
+  useEffect(() => {
+    const fetchData = async () => {
+      if (user?.role === 'admin') {
+        const globalStats = await dbService.getGlobalStats();
+        setStats(globalStats);
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [user]);
+
   if (!user || user.role !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fadeIn">
@@ -19,158 +35,105 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
         <h2 className="text-2xl font-bold font-heading text-white mb-2">Access Restricted</h2>
-        <p className="text-slate-500 text-sm max-w-xs">You do not have permission to view this panel.</p>
+        <p className="text-slate-500 text-sm max-w-xs">Admin access required for global stats.</p>
       </div>
     );
   }
 
-  const users = useMemo(() => dbService.getAllUsers(), []);
-  const roadmaps = useMemo(() => dbService.getAllRoadmaps(), []);
+  if (loading || !stats) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+        <ProgressRing size="w-12 h-12" />
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Syncing Enterprise Metrics...</p>
+      </div>
+    );
+  }
 
-  const stats = useMemo(() => {
-    const now = new Date();
-    const today = new Date(now.setHours(0, 0, 0, 0));
-    
-    return {
-      totalUsers: users.length,
-      todayUsers: users.filter(u => new Date(u.created_at) >= today).length,
-      totalRoadmaps: roadmaps.length
-    };
-  }, [users, roadmaps]);
-
-  const skillUsage = useMemo(() => {
-    const summary: Record<string, number> = {};
-    roadmaps.forEach(rm => {
-      summary[rm.skill_name] = (summary[rm.skill_name] || 0) + 1;
-    });
-    return Object.entries(summary).sort((a, b) => b[1] - a[1]);
-  }, [roadmaps]);
-
-  const filteredData = useMemo(() => {
-    let result = roadmaps.map(rm => {
-      const u = users.find(usr => usr.id === rm.user_id);
-      return {
-        userName: u?.name || 'Unknown',
-        contact: u?.phone || 'N/A',
-        gender: u?.gender || 'N/A',
-        skill: rm.skill_name,
-        date: new Date(rm.created_at)
-      };
-    });
-
-    if (filterType === 'today') {
-      const today = new Date(new Date().setHours(0, 0, 0, 0));
-      result = result.filter(r => r.date >= today);
-    } else if (filterType === 'week') {
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      result = result.filter(r => r.date >= weekAgo);
-    }
-
-    if (searchSkill.trim()) {
-      result = result.filter(r => r.skill.toLowerCase().includes(searchSkill.toLowerCase()));
-    }
-
-    return result.sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [roadmaps, users, filterType, searchSkill]);
+  const skillSummary = useMemo(() => {
+    const counts: Record<string, number> = {};
+    stats.recentRoadmaps.forEach(r => counts[r.skill_name] = (counts[r.skill_name] || 0) + 1);
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [stats.recentRoadmaps]);
 
   return (
     <div className="flex flex-col gap-8 animate-fadeIn py-6">
       <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-bold font-heading">Admin Dashboard</h2>
-        <p className="text-slate-400 text-sm italic">Confidential activity log.</p>
+        <div className="flex items-center gap-3">
+           <h2 className="text-3xl font-bold font-heading text-white">Scale Panel</h2>
+           <span className="px-2 py-0.5 bg-green-500/10 text-green-400 text-[8px] font-black rounded border border-green-500/20 uppercase tracking-tighter">Live Monitor</span>
+        </div>
+        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Enterprise Architecture (100k+ Capability)</p>
       </div>
 
-      {/* Secret Report Links Section */}
-      <div className="grid grid-cols-2 gap-3 no-print">
-        <button 
-          onClick={() => window.location.pathname = '/admin-daily-report'}
-          className="p-4 glass-card rounded-2xl border-slate-800 text-[10px] font-bold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2 uppercase tracking-tighter"
-        >
-          📄 Daily
-        </button>
-        <button 
-          onClick={() => window.location.pathname = '/admin-weekly-report'}
-          className="p-4 glass-card rounded-2xl border-slate-800 text-[10px] font-bold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2 uppercase tracking-tighter"
-        >
-          📊 Weekly
-        </button>
-        <button 
-          onClick={() => window.location.pathname = '/admin-monthly-report'}
-          className="col-span-2 p-4 glass-card rounded-2xl border-slate-800 text-[10px] font-bold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
-        >
-          🗓️ Monthly WhatsApp Summary
-        </button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4">
-        <div className="glass-card p-6 rounded-3xl flex justify-between items-center border-slate-800">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Users Entered</div>
-          <div className="text-3xl font-bold text-blue-400">{stats.totalUsers}</div>
+      {/* Cloud Stats */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="glass-card p-6 rounded-[2rem] flex flex-col gap-2 border-blue-500/20 shadow-2xl overflow-hidden relative group">
+          <div className="absolute -top-4 -right-4 w-20 h-20 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-all"></div>
+          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Global Users</span>
+          <span className="text-3xl font-bold text-blue-400 font-heading">{stats.totalUsers.toLocaleString()}</span>
+          <div className="text-[8px] text-green-500 font-bold uppercase">Ready to scale</div>
         </div>
-        <div className="glass-card p-6 rounded-3xl flex justify-between items-center border-slate-800">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Today's Users</div>
-          <div className="text-3xl font-bold text-pink-400">{stats.todayUsers}</div>
-        </div>
-        <div className="glass-card p-6 rounded-3xl flex justify-between items-center border-slate-800">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Roadmaps Generated</div>
-          <div className="text-3xl font-bold text-green-400">{stats.totalRoadmaps}</div>
+        <div className="glass-card p-6 rounded-[2rem] flex flex-col gap-2 border-pink-500/20 shadow-2xl overflow-hidden relative group">
+          <div className="absolute -top-4 -right-4 w-20 h-20 bg-pink-500/5 rounded-full blur-2xl group-hover:bg-pink-500/10 transition-all"></div>
+          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Roadmaps</span>
+          <span className="text-3xl font-bold text-pink-400 font-heading">{stats.totalRoadmaps.toLocaleString()}</span>
+          <div className="text-[8px] text-pink-500 font-bold uppercase">AI Engines Active</div>
         </div>
       </div>
 
-      {/* Usage Summary */}
+      {/* Top Skills Trend */}
       <div className="flex flex-col gap-4">
-        <h3 className="text-lg font-bold font-heading">Most Used Roadmaps</h3>
+        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Interest Distribution (Recent)</h3>
         <div className="flex flex-col gap-2">
-          {skillUsage.map(([skill, count]) => (
-            <div key={skill} className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex justify-between items-center">
-              <span className="text-sm font-medium text-slate-300">{skill}</span>
-              <span className="text-blue-400 font-bold">{count}</span>
+          {skillSummary.slice(0, 5).map(([name, count]) => (
+            <div key={name} className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex justify-between items-center transition-all hover:bg-slate-900">
+              <span className="text-sm font-medium text-slate-300">{name}</span>
+              <div className="flex items-center gap-2">
+                 <div className="w-16 h-1 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500" style={{ width: `${(count / stats.recentRoadmaps.length) * 100}%` }}></div>
+                 </div>
+                 <span className="bg-blue-600/10 text-blue-400 px-2 py-0.5 rounded-lg text-[10px] font-bold">{count}</span>
+              </div>
             </div>
           ))}
-          {skillUsage.length === 0 && <p className="text-slate-600 text-xs italic">No roadmaps generated yet.</p>}
         </div>
       </div>
 
-      {/* Activity Table */}
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4">
-          <h3 className="text-lg font-bold font-heading">User Details</h3>
-          <div className="flex gap-2">
-            <select 
-              value={filterType} 
-              onChange={(e) => setFilterType(e.target.value as any)}
-              className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-xs font-bold text-slate-300 focus:outline-none"
-            >
-              <option value="all">All Time</option>
-              <option value="today">Today</option>
-              <option value="week">Last 7 Days</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          {filteredData.map((row, i) => (
-            <div key={i} className="glass-card p-5 rounded-2xl border-slate-800 flex flex-col gap-2">
-              <div className="flex justify-between items-start">
-                <div className="font-bold text-slate-100">{row.userName}</div>
-                <div className="text-[10px] text-slate-500 font-mono">{row.date.toLocaleDateString()}</div>
-              </div>
-              <div className="text-xs text-blue-400 font-medium">{row.skill}</div>
-              <div className="flex justify-between items-center mt-2 border-t border-slate-800/50 pt-2">
-                <span className="text-[11px] text-slate-500 font-mono">{row.contact}</span>
-                <span className={`text-[9px] font-bold uppercase tracking-widest ${
-                  row.gender === 'Male' ? 'text-blue-500' : 'text-pink-500'
-                }`}>
-                  {row.gender}
-                </span>
-              </div>
-            </div>
-          ))}
-          {filteredData.length === 0 && (
-            <div className="text-center py-12 text-slate-600 italic text-sm">No activity recorded.</div>
-          )}
-        </div>
+      {/* User Stream */}
+      <div className="flex flex-col gap-4">
+         <div className="flex justify-between items-center">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Live Traffic Stream</h3>
+            <span className="text-[9px] text-green-500 font-bold flex items-center gap-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+              Real-time
+            </span>
+         </div>
+         <div className="space-y-3">
+           {stats.recentUsers.map((u, i) => (
+             <div key={i} className="glass-card p-4 rounded-2xl border-slate-800 flex justify-between items-center hover:border-slate-700 transition-colors">
+                <div className="flex items-center gap-3">
+                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${u.gender === 'Male' ? 'bg-blue-500/10 text-blue-400' : 'bg-pink-500/10 text-pink-400'}`}>
+                     {u.name[0]}
+                   </div>
+                   <div className="flex flex-col">
+                      <span className="text-sm font-bold text-white leading-none">{u.name}</span>
+                      <span className="text-[9px] text-slate-600 font-mono mt-1">ID: ...{u.id.slice(-6)}</span>
+                   </div>
+                </div>
+                <div className="text-right">
+                   <div className="text-[10px] text-slate-500 font-medium">
+                     {new Date(u.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                   </div>
+                </div>
+             </div>
+           ))}
+         </div>
+      </div>
+      
+      <div className="text-center p-8 border-t border-slate-900/50 mt-4 opacity-50">
+         <p className="text-[9px] text-slate-500 font-medium leading-relaxed uppercase tracking-widest">
+           Firestore Blaze Tier • Gemini Enterprise Pro • Netlify Edge Hosting
+         </p>
       </div>
     </div>
   );

@@ -50,6 +50,16 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
     "Finalizing custom roadmap"
   ];
 
+  // Persistence: Check for previously generated roadmap on mount
+  useEffect(() => {
+    const cached = localStorage.getItem('skillshift_active_roadmap');
+    if (cached) {
+      const data = JSON.parse(cached);
+      setGeneratedData(data);
+      setState(EngineState.PREVIEW);
+    }
+  }, []);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -102,18 +112,23 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
     }
   };
 
+  const handleNewRoadmap = (roadmap: any) => {
+    setGeneratedData(roadmap);
+    localStorage.setItem('skillshift_active_roadmap', JSON.stringify(roadmap));
+    setState(EngineState.PREVIEW);
+  };
+
   const selectSkillFromLibrary = async (skillName: string) => {
     setState(EngineState.GENERATING);
     setGenerationStep(0);
     const roadmap = await generateDetailedRoadmap(skillName);
     if (roadmap) {
-      setGeneratedData(roadmap);
+      handleNewRoadmap(roadmap);
       if (user) {
         const record = await dbService.saveRoadmap(user.id, roadmap);
         setActiveRoadmapRecord(record);
         await syncToSheet(roadmap.skillName);
       }
-      setState(EngineState.PREVIEW);
     } else {
       setNotification({ show: true, message: "Something went wrong. Please try again.", type: 'error' });
       setState(EngineState.INTRO);
@@ -142,13 +157,12 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
       setGenerationStep(0);
       const roadmap = await generateDetailedRoadmap(newAnswers);
       if (roadmap) {
-        setGeneratedData(roadmap);
+        handleNewRoadmap(roadmap);
         if (user) {
           const record = await dbService.saveRoadmap(user.id, roadmap);
           setActiveRoadmapRecord(record);
           await syncToSheet(roadmap.skillName);
         }
-        setState(EngineState.PREVIEW);
       } else {
         setNotification({ show: true, message: "Something went wrong. Please try again.", type: 'error' });
         setState(EngineState.INTRO);
@@ -274,6 +288,12 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
     } finally {
       setDownloading(false);
     }
+  };
+
+  const resetEngine = () => {
+    localStorage.removeItem('skillshift_active_roadmap');
+    setGeneratedData(null);
+    setState(EngineState.INTRO);
   };
 
   return (
@@ -422,11 +442,11 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
           {/* Sticky Toolbar */}
           <div className="no-print sticky top-16 z-40 bg-slate-950/95 backdrop-blur-md py-4 border-b border-slate-800 -mx-5 px-5 mb-8 flex items-center justify-between">
             <button 
-              onClick={() => setState(EngineState.INTRO)} 
+              onClick={resetEngine} 
               className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-widest hover:text-slate-300 transition-colors"
             >
               <div className="rotate-180 scale-75"><Icons.ArrowRight /></div> 
-              Reset
+              New Quiz
             </button>
             <div className="flex items-center gap-2">
               <button 

@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { dbService } from '../services/dbService';
-import { User } from '../types';
+import { User, RoadmapRecord } from '../types';
 
 interface AdminWeeklyReportProps {
   user: User | null;
@@ -10,6 +10,9 @@ interface AdminWeeklyReportProps {
 const AdminWeeklyReport: React.FC<AdminWeeklyReportProps> = ({ user }) => {
   const WHATSAPP_NUMBER = "7991500823";
   const [reportSent, setReportSent] = useState(false);
+  /* Fix: Added state for async data */
+  const [data, setData] = useState<{users: User[], roadmaps: RoadmapRecord[]} | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const lastSent = localStorage.getItem('skillshift_weekly_report_sent');
@@ -25,6 +28,24 @@ const AdminWeeklyReport: React.FC<AdminWeeklyReportProps> = ({ user }) => {
     }
   }, []);
 
+  /* Fix: Fetch required data on component mount */
+  useEffect(() => {
+    const fetchData = async () => {
+      if (user?.role === 'admin') {
+        try {
+          const users = await dbService.getAllUsers();
+          const roadmaps = await dbService.getAllRoadmaps();
+          setData({ users, roadmaps });
+        } catch (error) {
+          console.error("Weekly report data fetch failed:", error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    fetchData();
+  }, [user]);
+
   // Access Restriction Check
   if (!user || user.role !== 'admin') {
     return (
@@ -38,9 +59,11 @@ const AdminWeeklyReport: React.FC<AdminWeeklyReportProps> = ({ user }) => {
     );
   }
 
+  /* Fix: Modified useMemo to rely on asynchronously fetched data */
   const reportData = useMemo(() => {
-    const allUsers = dbService.getAllUsers();
-    const allRoadmaps = dbService.getAllRoadmaps();
+    if (!data) return null;
+    const allUsers = data.users;
+    const allRoadmaps = data.roadmaps;
     
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -90,9 +113,10 @@ Insight:
       text: reportText,
       topRoadmap
     };
-  }, []);
+  }, [data]);
 
   const sendToWhatsApp = () => {
+    if (!reportData) return;
     const encodedText = encodeURIComponent(reportData.text);
     const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodedText}`;
     window.open(url, '_blank');
@@ -101,6 +125,17 @@ Insight:
     localStorage.setItem('skillshift_weekly_report_sent', new Date().toISOString());
     setReportSent(true);
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4">
+        <div className="w-8 h-8 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Generating Weekly Report...</p>
+      </div>
+    );
+  }
+
+  if (!reportData) return null;
 
   return (
     <div className="flex flex-col gap-6 animate-fadeIn py-8 px-2">

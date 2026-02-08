@@ -55,7 +55,8 @@ export const authService = {
   signInWithEmail: async (email: string, pass: string): Promise<User> => {
     try {
       const result = await signInWithEmailAndPassword(auth, email, pass);
-      const users = dbService.getAllUsers();
+      /* Fix: Await the async getAllUsers method */
+      const users = await dbService.getAllUsers();
       const existing = users.find(u => u.name === result.user.displayName) || {
         id: result.user.uid,
         name: result.user.displayName || "User",
