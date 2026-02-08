@@ -32,56 +32,72 @@ const App: React.FC = () => {
   const [authRedirectMessage, setAuthRedirectMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    // 1. Initial Local Storage check for immediate UI feedback
+    const savedUser = authService.getCurrentUser();
+    if (savedUser) setUser(savedUser);
+
+    let unsub: (() => void) | null = null;
+
     const initApp = async () => {
-      // 1. Handle any redirect result first (completion of Google Auth flow)
+      // Safety timeout: If Firebase hangs, force load the app after 6 seconds
+      const forceLoadTimeout = setTimeout(() => {
+        if (!isLoaded) {
+          console.warn("Auth initialization taking too long, forcing load.");
+          setIsLoaded(true);
+        }
+      }, 6000);
+
       try {
+        // Handle Google Auth redirection result
         const redirectedUser = await authService.handleRedirectResult();
         if (redirectedUser) {
           setUser(redirectedUser);
-          // Don't set isLoaded yet, let the listener handle final state
         }
+
+        // Listen for Auth changes
+        unsub = authService.onAuthUpdate(async (fbUser) => {
+          if (fbUser) {
+            try {
+              const profile = await dbService.getUserProfile(fbUser.uid);
+              if (profile) {
+                setUser(profile);
+                localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
+              } else {
+                // If profile is missing but user is authed, create it
+                const backup = await dbService.createProfile(fbUser.uid, fbUser.displayName || "User", "", "Other");
+                setUser(backup);
+                localStorage.setItem('skillshift_current_user', JSON.stringify(backup));
+              }
+            } catch (err) {
+              console.error("Profile sync failed:", err);
+            }
+          } else {
+            setUser(null);
+            localStorage.removeItem('skillshift_current_user');
+          }
+          
+          clearTimeout(forceLoadTimeout);
+          setIsLoaded(true);
+        });
       } catch (err) {
-        console.error("Redirect Flow Error:", err);
+        console.error("App init error:", err);
+        clearTimeout(forceLoadTimeout);
+        setIsLoaded(true);
       }
 
-      // 2. Auth state observer
-      const unsubscribe = authService.onAuthUpdate(async (fbUser) => {
-        if (fbUser) {
-          // If logged in via Firebase, fetch the database profile
-          const profile = await dbService.getUserProfile(fbUser.uid);
-          if (profile) {
-            setUser(profile);
-            localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
-          } else {
-            // Profile doesn't exist yet (should have been created by handleRedirectResult or signUp)
-            // But we can create a backup stub here if needed.
-            const backupProfile = await dbService.createProfile(fbUser.uid, fbUser.displayName || "User", "", "Other");
-            setUser(backupProfile);
-            localStorage.setItem('skillshift_current_user', JSON.stringify(backupProfile));
-          }
-        } else {
-          setUser(null);
-          localStorage.removeItem('skillshift_current_user');
-        }
-        
-        // ONLY mark as loaded once we have successfully determined the profile
-        setIsLoaded(true);
-      });
-
-      // 3. Admin Route Detection
+      // Admin Route Logic
       const path = window.location.pathname;
       if (path.includes('admin-overview') || path.includes('hidden-admin-panel')) {
         setCurrentPage(Page.ADMIN_DASHBOARD);
       } else if (path.includes('admin-daily-report')) {
         setCurrentPage(Page.ADMIN_REPORT);
       }
-
-      return unsubscribe;
     };
 
-    const unsubscribePromise = initApp();
+    initApp();
+
     return () => {
-      unsubscribePromise.then(unsub => unsub?.());
+      if (unsub) unsub();
     };
   }, []); 
 
