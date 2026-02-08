@@ -32,15 +32,18 @@ const App: React.FC = () => {
   const [authRedirectMessage, setAuthRedirectMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Setup the main Auth Listener
+    // 1. Handle potential Google Redirect (essential for mobile/web flow)
+    authService.handleRedirectResult().catch(err => console.error("Redirect check failed:", err));
+
+    // 2. Setup standard Auth listener - This is the "Heartbeat" of the app
     const unsubscribe = authService.onAuthUpdate(async (fbUser) => {
-      try {
-        if (fbUser) {
-          // User is authenticated by Firebase
+      if (fbUser) {
+        try {
+          // If Firebase says we have a user, check our database for their profile
           let profile = await dbService.getUserProfile(fbUser.uid);
           
           if (!profile) {
-            // New User (or first time Google login)
+            // If they are logged into Firebase but don't have a DB record yet (happens on first Google login)
             profile = await dbService.createProfile(
               fbUser.uid, 
               fbUser.displayName || "User", 
@@ -50,24 +53,22 @@ const App: React.FC = () => {
           }
           
           setUser(profile);
+          // Sync with local storage for snappy feel on reloads
           localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
-        } else {
-          // User is logged out
-          setUser(null);
-          localStorage.removeItem('skillshift_current_user');
+        } catch (err) {
+          console.error("Profile sync error:", err);
         }
-      } catch (err) {
-        console.error("Auth Listener Profile Sync Error:", err);
-      } finally {
-        setIsLoaded(true);
+      } else {
+        // User logged out
+        setUser(null);
+        localStorage.removeItem('skillshift_current_user');
       }
+      
+      // Crucial: Only set isLoaded to true AFTER the initial check is complete
+      setIsLoaded(true);
     });
 
-    // 2. Handle Google Redirect Result (only for browsers returning from Google)
-    // We don't await this to block the listener, let it happen in parallel
-    authService.handleRedirectResult().catch(err => console.error("Redirect handler failed:", err));
-
-    // Admin Route Handling
+    // Admin Route detection (Optional - if URL contains specific segments)
     const path = window.location.pathname;
     if (path.includes('admin-overview')) setCurrentPage(Page.ADMIN_DASHBOARD);
     if (path.includes('admin-daily-report')) setCurrentPage(Page.ADMIN_REPORT);
@@ -76,8 +77,9 @@ const App: React.FC = () => {
   }, []); 
 
   const handlePageChange = (page: Page, message?: string) => {
+    // Prevent unauthorized access to sensitive pages
     if (page === Page.ROADMAPS && !user) {
-      setAuthRedirectMessage(message || "Roadmap dekhne ke liye login karein.");
+      setAuthRedirectMessage(message || "Roadmap dekhne ke liye pehle login karein.");
       setCurrentPage(Page.PROFILE_ENTRY);
       return;
     }
@@ -105,6 +107,7 @@ const App: React.FC = () => {
             onSuccess={(u) => {
               setUser(u);
               setAuthRedirectMessage(null);
+              // After manual login, take them to the preparing screen
               setCurrentPage(Page.PREPARING);
             }} 
             onBack={() => handlePageChange(Page.HOME)} 
@@ -128,7 +131,7 @@ const App: React.FC = () => {
         <ProgressRing size="w-16 h-16" />
         <div className="mt-8 flex flex-col items-center gap-2 animate-pulse">
           <h1 className="text-3xl font-bold font-heading text-white tracking-widest uppercase">SkillShift</h1>
-          <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase">Initializing</p>
+          <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase">Syncing Security</p>
         </div>
       </div>
     );
