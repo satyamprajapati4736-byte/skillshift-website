@@ -20,9 +20,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
   useEffect(() => {
     const fetchData = async () => {
       if (user?.role === 'admin') {
-        const globalStats = await dbService.getGlobalStats();
-        setStats(globalStats);
-        setLoading(false);
+        try {
+          const globalStats = await dbService.getGlobalStats();
+          setStats(globalStats);
+        } catch (err) {
+          console.error("Dashboard error:", err);
+        } finally {
+          setLoading(false);
+        }
       }
     };
     fetchData();
@@ -102,10 +107,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user }) => {
       {/* User Stream */}
       <div className="flex flex-col gap-4">
          <div className="flex justify-between items-center">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Live Traffic Stream</h3>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500">Recent Traffic Stream</h3>
             <span className="text-[9px] text-green-500 font-bold flex items-center gap-1">
               <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-              Real-time
+              Latest 50
             </span>
          </div>
          <div className="space-y-3">

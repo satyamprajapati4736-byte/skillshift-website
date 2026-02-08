@@ -20,8 +20,10 @@ import { RoadmapRecord, User, Gender } from "../types";
 const ADMIN_PHONES = ["7991500823", "9991234567", "9876543210"];
 
 export const dbService = {
+  // Cloud Profile Creation/Sync
   createProfile: async (name: string, phone: string, gender: Gender): Promise<User> => {
     const usersRef = collection(db, "users");
+    // Optimized search by phone with limit 1
     const q = query(usersRef, where("phone", "==", phone), limit(1));
     const querySnapshot = await getDocs(q);
 
@@ -42,17 +44,18 @@ export const dbService = {
     return { ...newUser, id: docRef.id };
   },
 
-  // NEW: Highly scalable stats using Firestore's count() aggregation
+  // HIGH SCALE OPTIMIZATION: Use getCountFromServer instead of fetching all docs
   getGlobalStats: async () => {
     const usersColl = collection(db, "users");
     const roadmapsColl = collection(db, "roadmaps");
     
-    // Fast & Cheap counting for 100k+ users
+    // Aggregation queries are extremely efficient for 100k+ records
     const [usersCount, roadmapsCount] = await Promise.all([
       getCountFromServer(usersColl),
       getCountFromServer(roadmapsColl)
     ]);
 
+    // Fetch only the most recent 50 for the activity stream
     const recentUsersQuery = query(usersColl, orderBy("created_at", "desc"), limit(50));
     const recentRoadmapsQuery = query(roadmapsColl, orderBy("created_at", "desc"), limit(50));
     
@@ -70,23 +73,20 @@ export const dbService = {
     };
   },
 
-  // Optimized for huge data sets - filters server-side
+  // Optimized report fetch - filters server-side by date
   getRecentActivity: async (days: number = 1): Promise<{users: User[], roadmaps: RoadmapRecord[]}> => {
     const timeLimit = new Date();
     timeLimit.setDate(timeLimit.getDate() - days);
     const timeStr = timeLimit.toISOString();
     
-    // Filtering server-side means we don't fetch 100k users to find today's 100
     const uQuery = query(
       collection(db, "users"), 
       where("created_at", ">=", timeStr),
-      orderBy("created_at", "desc"),
-      limit(500)
+      limit(500) // Cap for safety
     );
     const rQuery = query(
       collection(db, "roadmaps"), 
       where("created_at", ">=", timeStr),
-      orderBy("created_at", "desc"),
       limit(500)
     );
     
@@ -98,18 +98,20 @@ export const dbService = {
     };
   },
 
-  getAllUsers: async (limitCount: number = 100): Promise<User[]> => {
+  // Never fetch everything. Always limit for 100k user support.
+  getAllUsers: async (limitCount: number = 50): Promise<User[]> => {
     const q = query(collection(db, "users"), orderBy("created_at", "desc"), limit(limitCount));
     const usersSnap = await getDocs(q);
     return usersSnap.docs.map(d => ({ ...d.data(), id: d.id } as User));
   },
 
-  getAllRoadmaps: async (limitCount: number = 100): Promise<RoadmapRecord[]> => {
+  getAllRoadmaps: async (limitCount: number = 50): Promise<RoadmapRecord[]> => {
     const q = query(collection(db, "roadmaps"), orderBy("created_at", "desc"), limit(limitCount));
     const roadmapsSnap = await getDocs(q);
     return roadmapsSnap.docs.map(d => ({ ...d.data(), id: d.id } as RoadmapRecord));
   },
 
+  // Save Roadmap to Cloud
   saveRoadmap: async (user_id: string, roadmapData: any): Promise<RoadmapRecord> => {
     const newRecord: any = {
       user_id,
@@ -124,8 +126,9 @@ export const dbService = {
     return { ...newRecord, id: docRef.id };
   },
 
+  // Get User's Roadmaps (limited to 10 most recent)
   getRoadmapsByUserId: async (user_id: string): Promise<RoadmapRecord[]> => {
-    const q = query(collection(db, "roadmaps"), where("user_id", "==", user_id), orderBy("created_at", "desc"), limit(20));
+    const q = query(collection(db, "roadmaps"), where("user_id", "==", user_id), orderBy("created_at", "desc"), limit(10));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as RoadmapRecord));
   }

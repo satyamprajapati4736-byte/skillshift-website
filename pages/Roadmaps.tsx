@@ -50,7 +50,7 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
     "Finalizing custom roadmap"
   ];
 
-  // Persistence: Check for previously generated roadmap on mount
+  // Persistence: Check for previously generated roadmap on mount to save cost & time
   useEffect(() => {
     const cached = localStorage.getItem('skillshift_active_roadmap');
     if (cached) {
