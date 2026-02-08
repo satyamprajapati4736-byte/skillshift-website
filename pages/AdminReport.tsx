@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { dbService } from '../services/dbService';
 import { User, RoadmapRecord } from '../types';
@@ -15,7 +14,6 @@ const AdminReport: React.FC<AdminReportProps> = ({ user }) => {
     const fetchData = async () => {
       if (user?.role === 'admin') {
         try {
-          // Optimized: Only fetching today's activity from server
           const activity = await dbService.getRecentActivity(1);
           setData(activity);
         } catch (error) {
@@ -31,9 +29,6 @@ const AdminReport: React.FC<AdminReportProps> = ({ user }) => {
   if (!user || user.role !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-500 mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        </div>
         <h2 className="text-2xl font-bold font-heading text-white mb-2">Access Restricted</h2>
       </div>
     );
@@ -51,17 +46,11 @@ const AdminReport: React.FC<AdminReportProps> = ({ user }) => {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5);
 
-    const maleCount = data.users.filter(u => u.gender === 'Male').length;
-    const femaleCount = data.users.filter(u => u.gender === 'Female').length;
-
     return {
       date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
       totalUsers: data.users.length,
       totalRoadmaps: data.roadmaps.length,
       topRoadmaps: sortedRoadmaps,
-      male: maleCount,
-      female: femaleCount,
-      insight: sortedRoadmaps[0] ? `User interest is peaking in ${sortedRoadmaps[0][0]}.` : "Collecting initial data..."
     };
   }, [data]);
 
@@ -69,7 +58,7 @@ const AdminReport: React.FC<AdminReportProps> = ({ user }) => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4">
         <div className="w-8 h-8 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Compiling Edge Logs...</p>
+        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Generating Report...</p>
       </div>
     );
   }
@@ -77,52 +66,43 @@ const AdminReport: React.FC<AdminReportProps> = ({ user }) => {
   if (!reportData) return null;
 
   return (
-    <div className="flex flex-col gap-6 animate-fadeIn py-8 px-2 font-mono text-xs leading-relaxed text-slate-400">
+    <div className="flex flex-col gap-6 animate-fadeIn py-8 px-2 text-sm text-slate-400">
       <div className="border-b border-slate-800 pb-4 mb-4">
-        <h2 className="text-xl font-bold text-white mb-1 font-heading">Daily Scale Report</h2>
-        <p className="text-slate-600 uppercase tracking-widest font-black text-[9px]">Status: Systems Operational</p>
+        <h2 className="text-xl font-bold text-white mb-1 font-heading">Daily Summary</h2>
+        <p className="text-slate-600 uppercase tracking-widest font-bold text-[9px]">{reportData.date}</p>
       </div>
 
       <div className="space-y-6">
-        <section>
-          <div className="text-slate-600 mb-1">LOG_DATE: {reportData.date}</div>
-          <div className="text-white font-bold mb-4">--------------------------------</div>
-          
-          <ul className="list-none space-y-1">
-            <li>[+] NEW_USERS_24H: {reportData.totalUsers}</li>
-            <li>[+] NEW_ROADMAPS_24H: {reportData.totalRoadmaps}</li>
-          </ul>
-        </section>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+             <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">New Users</div>
+             <div className="text-xl font-bold text-white">{reportData.totalUsers}</div>
+          </div>
+          <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+             <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">New Roadmaps</div>
+             <div className="text-xl font-bold text-white">{reportData.totalRoadmaps}</div>
+          </div>
+        </div>
 
-        <section>
-          <div className="text-white font-bold mb-2 uppercase tracking-tighter">Market_Sentiment:</div>
-          <ol className="list-none space-y-1">
+        <div>
+          <h3 className="text-white font-bold mb-3 uppercase text-xs">Trending Skills</h3>
+          <div className="space-y-2">
             {reportData.topRoadmaps.map(([name, count], i) => (
-              <li key={i}>{i + 1}) {name.padEnd(20, '.')} {count} HIT</li>
+              <div key={i} className="flex justify-between items-center p-3 bg-slate-900/30 rounded-xl border border-slate-800/50">
+                <span>{name}</span>
+                <span className="font-bold text-blue-400">{count}</span>
+              </div>
             ))}
-          </ol>
-        </section>
-
-        <section>
-          <div className="text-white font-bold mb-2 uppercase tracking-tighter">User_Demographics:</div>
-          <ul className="list-none space-y-1">
-            <li>• SEGMENT_MALE: {reportData.male}</li>
-            <li>• SEGMENT_FEMALE: {reportData.female}</li>
-          </ul>
-          <div className="text-white font-bold mt-4">--------------------------------</div>
-        </section>
-
-        <section className="pt-4 italic text-blue-500/80">
-          “ANALYSIS: {reportData.insight}”
-        </section>
+          </div>
+        </div>
       </div>
 
-      <div className="mt-12 text-center no-print">
+      <div className="mt-12 text-center">
         <button 
           onClick={() => window.print()}
-          className="px-6 py-2 bg-slate-900 border border-slate-800 rounded-full text-[9px] uppercase tracking-[0.2em] font-black text-slate-500 hover:text-white transition-all"
+          className="text-[10px] uppercase tracking-widest font-bold text-slate-500 hover:text-white"
         >
-          Print System Log
+          Print Report
         </button>
       </div>
     </div>
