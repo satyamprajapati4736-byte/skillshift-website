@@ -18,7 +18,7 @@ export const authService = {
     try {
       await signInWithRedirect(auth, googleProvider);
     } catch (error: any) {
-      console.error("Google Auth Error:", error);
+      console.error("Google Auth Request Error:", error);
       throw error;
     }
   },
@@ -28,18 +28,21 @@ export const authService = {
       const result = await getRedirectResult(auth);
       if (result) {
         const fbUser = result.user;
-        const user = await dbService.createProfile(
+        // The App.tsx listener will handle fetching/creating profile
+        // but we can proactively ensure profile exists here too.
+        const profile = await dbService.getUserProfile(fbUser.uid);
+        const finalUser = profile || await dbService.createProfile(
           fbUser.uid,
           fbUser.displayName || "User", 
           fbUser.phoneNumber || "", 
           'Other'
         );
-        localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-        return user;
+        localStorage.setItem(SESSION_KEY, JSON.stringify(finalUser));
+        return finalUser;
       }
       return null;
     } catch (error: any) {
-      console.error("Redirect Error:", error);
+      console.error("Redirect handling error:", error);
       return null;
     }
   },
@@ -54,7 +57,7 @@ export const authService = {
   signInWithEmail: async (email: string, pass: string): Promise<User> => {
     const result = await signInWithEmailAndPassword(auth, email, pass);
     const profile = await dbService.getUserProfile(result.user.uid);
-    if (!profile) throw new Error("Profile not found in database.");
+    if (!profile) throw new Error("Profile document missing.");
     localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
     return profile;
   },
@@ -62,11 +65,17 @@ export const authService = {
   logout: async () => {
     await signOut(auth);
     localStorage.removeItem(SESSION_KEY);
+    // Force a small reload or state clear is often safer for complex auth apps
   },
 
   getCurrentUser: (): User | null => {
     const session = localStorage.getItem(SESSION_KEY);
-    return session ? JSON.parse(session) : null;
+    if (!session) return null;
+    try {
+      return JSON.parse(session);
+    } catch {
+      return null;
+    }
   },
 
   onAuthUpdate: (callback: (user: FirebaseUser | null) => void) => {

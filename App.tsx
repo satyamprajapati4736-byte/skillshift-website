@@ -32,56 +32,42 @@ const App: React.FC = () => {
   const [authRedirectMessage, setAuthRedirectMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Instant UI: Load from localStorage if exists
-    const cachedUser = authService.getCurrentUser();
-    if (cachedUser) {
-      setUser(cachedUser);
-    }
-
-    // 2. Handle Google Login Redirect (if we just came back from Google)
-    const handleAuth = async () => {
-      try {
-        const redirectedUser = await authService.handleRedirectResult();
-        if (redirectedUser) {
-          setUser(redirectedUser);
-        }
-      } catch (err) {
-        console.error("Redirect Error:", err);
-      }
-    };
-    handleAuth();
-
-    // 3. Listen for Firebase Auth changes (Single source of truth)
+    // 1. Setup the main Auth Listener
     const unsubscribe = authService.onAuthUpdate(async (fbUser) => {
-      if (fbUser) {
-        try {
-          // If Firebase says we are logged in, get the actual Firestore profile
-          const profile = await dbService.getUserProfile(fbUser.uid);
-          if (profile) {
-            setUser(profile);
-            localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
-          } else {
-            // If user is authed but no DB profile, create a basic one
-            const newProfile = await dbService.createProfile(
+      try {
+        if (fbUser) {
+          // User is authenticated by Firebase
+          let profile = await dbService.getUserProfile(fbUser.uid);
+          
+          if (!profile) {
+            // New User (or first time Google login)
+            profile = await dbService.createProfile(
               fbUser.uid, 
               fbUser.displayName || "User", 
               "", 
               "Other"
             );
-            setUser(newProfile);
           }
-        } catch (err) {
-          console.error("Auth sync error:", err);
+          
+          setUser(profile);
+          localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
+        } else {
+          // User is logged out
+          setUser(null);
+          localStorage.removeItem('skillshift_current_user');
         }
-      } else {
-        // Not logged in or logged out
-        setUser(null);
-        localStorage.removeItem('skillshift_current_user');
+      } catch (err) {
+        console.error("Auth Listener Profile Sync Error:", err);
+      } finally {
+        setIsLoaded(true);
       }
-      setIsLoaded(true);
     });
 
-    // Admin detection
+    // 2. Handle Google Redirect Result (only for browsers returning from Google)
+    // We don't await this to block the listener, let it happen in parallel
+    authService.handleRedirectResult().catch(err => console.error("Redirect handler failed:", err));
+
+    // Admin Route Handling
     const path = window.location.pathname;
     if (path.includes('admin-overview')) setCurrentPage(Page.ADMIN_DASHBOARD);
     if (path.includes('admin-daily-report')) setCurrentPage(Page.ADMIN_REPORT);
@@ -140,7 +126,10 @@ const App: React.FC = () => {
     return (
       <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center z-[100]">
         <ProgressRing size="w-16 h-16" />
-        <h1 className="mt-6 text-2xl font-bold font-heading text-white">SkillShift</h1>
+        <div className="mt-8 flex flex-col items-center gap-2 animate-pulse">
+          <h1 className="text-3xl font-bold font-heading text-white tracking-widest uppercase">SkillShift</h1>
+          <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase">Initializing</p>
+        </div>
       </div>
     );
   }
