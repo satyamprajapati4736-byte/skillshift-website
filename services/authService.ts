@@ -1,5 +1,4 @@
 import { 
-  signInWithPopup, 
   signInWithRedirect,
   getRedirectResult,
   signInWithEmailAndPassword, 
@@ -14,27 +13,13 @@ import { dbService } from "./dbService";
 
 const SESSION_KEY = 'skillshift_current_user';
 
-const handleAuthError = (error: any) => {
-  console.error("Firebase Auth Error Full Object:", error);
-  const errorCode = error.code || 'unknown-error';
-  
-  if (errorCode === 'auth/unauthorized-domain' || 
-      error.message?.toLowerCase().includes('unauthorized domain')) {
-    const detected = window.location.hostname;
-    throw new Error(`AUTH_DOMAIN_ERROR:${detected}`);
-  }
-  
-  // Return the specific error code to show the user
-  throw new Error(`AUTH_FAILED:${errorCode}`);
-};
-
 export const authService = {
   loginWithGoogle: async (): Promise<void> => {
     try {
-      // Use Redirect instead of Popup for 100% mobile success
       await signInWithRedirect(auth, googleProvider);
     } catch (error: any) {
-      handleAuthError(error);
+      console.error("Google Auth Error:", error);
+      throw error;
     }
   },
 
@@ -45,8 +30,8 @@ export const authService = {
         const fbUser = result.user;
         const user = await dbService.createProfile(
           fbUser.uid,
-          fbUser.displayName || "Anonymous", 
-          fbUser.phoneNumber || "0000000000", 
+          fbUser.displayName || "User", 
+          fbUser.phoneNumber || "", 
           'Other'
         );
         localStorage.setItem(SESSION_KEY, JSON.stringify(user));
@@ -54,43 +39,24 @@ export const authService = {
       }
       return null;
     } catch (error: any) {
-      handleAuthError(error);
+      console.error("Redirect Error:", error);
       return null;
     }
   },
 
   signUpWithEmail: async (email: string, pass: string, name: string, gender: Gender, phone: string): Promise<User> => {
-    try {
-      const result = await createUserWithEmailAndPassword(auth, email, pass);
-      const user = await dbService.createProfile(result.user.uid, name, phone, gender);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-      return user;
-    } catch (error: any) {
-      return handleAuthError(error);
-    }
+    const result = await createUserWithEmailAndPassword(auth, email, pass);
+    const user = await dbService.createProfile(result.user.uid, name, phone, gender);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    return user;
   },
 
   signInWithEmail: async (email: string, pass: string): Promise<User> => {
-    try {
-      const result = await signInWithEmailAndPassword(auth, email, pass);
-      let existing = await dbService.getUserProfile(result.user.uid);
-      
-      if (!existing) {
-        existing = {
-          id: result.user.uid,
-          name: result.user.displayName || "User",
-          phone: "0000000000",
-          gender: "Other" as Gender,
-          role: 'user',
-          created_at: new Date().toISOString()
-        };
-      }
-      
-      localStorage.setItem(SESSION_KEY, JSON.stringify(existing));
-      return existing as User;
-    } catch (error: any) {
-      return handleAuthError(error);
-    }
+    const result = await signInWithEmailAndPassword(auth, email, pass);
+    const profile = await dbService.getUserProfile(result.user.uid);
+    if (!profile) throw new Error("Profile not found in database.");
+    localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
+    return profile;
   },
 
   logout: async () => {

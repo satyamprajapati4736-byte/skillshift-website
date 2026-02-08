@@ -32,78 +32,57 @@ const App: React.FC = () => {
   const [authRedirectMessage, setAuthRedirectMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Initial Local Storage check for immediate UI feedback
-    const savedUser = authService.getCurrentUser();
-    if (savedUser) setUser(savedUser);
+    // 1. Restore user from session immediately for UI speed
+    const cachedUser = authService.getCurrentUser();
+    if (cachedUser) setUser(cachedUser);
 
-    let unsub: (() => void) | null = null;
-
-    const initApp = async () => {
-      // Safety timeout: If Firebase hangs, force load the app after 6 seconds
-      const forceLoadTimeout = setTimeout(() => {
-        if (!isLoaded) {
-          console.warn("Auth initialization taking too long, forcing load.");
-          setIsLoaded(true);
-        }
-      }, 6000);
-
-      try {
-        // Handle Google Auth redirection result
-        const redirectedUser = await authService.handleRedirectResult();
-        if (redirectedUser) {
-          setUser(redirectedUser);
-        }
-
-        // Listen for Auth changes
-        unsub = authService.onAuthUpdate(async (fbUser) => {
-          if (fbUser) {
-            try {
-              const profile = await dbService.getUserProfile(fbUser.uid);
-              if (profile) {
-                setUser(profile);
-                localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
-              } else {
-                // If profile is missing but user is authed, create it
-                const backup = await dbService.createProfile(fbUser.uid, fbUser.displayName || "User", "", "Other");
-                setUser(backup);
-                localStorage.setItem('skillshift_current_user', JSON.stringify(backup));
-              }
-            } catch (err) {
-              console.error("Profile sync failed:", err);
-            }
+    // 2. Setup standard Auth listener
+    const unsubscribe = authService.onAuthUpdate(async (fbUser) => {
+      if (fbUser) {
+        // Logged in: Fetch or Sync Profile
+        try {
+          const profile = await dbService.getUserProfile(fbUser.uid);
+          if (profile) {
+            setUser(profile);
+            localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
           } else {
-            setUser(null);
-            localStorage.removeItem('skillshift_current_user');
+            // Backup: If user is authed but no DB record, create one
+            const newProfile = await dbService.createProfile(
+              fbUser.uid, 
+              fbUser.displayName || "User", 
+              "", 
+              "Other"
+            );
+            setUser(newProfile);
+            localStorage.setItem('skillshift_current_user', JSON.stringify(newProfile));
           }
-          
-          clearTimeout(forceLoadTimeout);
-          setIsLoaded(true);
-        });
-      } catch (err) {
-        console.error("App init error:", err);
-        clearTimeout(forceLoadTimeout);
-        setIsLoaded(true);
+        } catch (err) {
+          console.error("Auth sync error:", err);
+        }
+      } else {
+        // Logged out
+        setUser(null);
+        localStorage.removeItem('skillshift_current_user');
       }
+      setIsLoaded(true);
+    });
 
-      // Admin Route Logic
-      const path = window.location.pathname;
-      if (path.includes('admin-overview') || path.includes('hidden-admin-panel')) {
-        setCurrentPage(Page.ADMIN_DASHBOARD);
-      } else if (path.includes('admin-daily-report')) {
-        setCurrentPage(Page.ADMIN_REPORT);
-      }
-    };
+    // 3. Handle Google Redirect completion (if any)
+    authService.handleRedirectResult().then(u => {
+      if (u) setUser(u);
+    });
 
-    initApp();
+    // Admin detection
+    const path = window.location.pathname;
+    if (path.includes('admin-overview')) setCurrentPage(Page.ADMIN_DASHBOARD);
+    if (path.includes('admin-daily-report')) setCurrentPage(Page.ADMIN_REPORT);
 
-    return () => {
-      if (unsub) unsub();
-    };
+    return () => unsubscribe();
   }, []); 
 
   const handlePageChange = (page: Page, message?: string) => {
     if (page === Page.ROADMAPS && !user) {
-      setAuthRedirectMessage(message || "Roadmap dekhne ke liye pehle login karo.");
+      setAuthRedirectMessage(message || "Roadmap dekhne ke liye login karein.");
       setCurrentPage(Page.PROFILE_ENTRY);
       return;
     }
@@ -115,9 +94,6 @@ const App: React.FC = () => {
     await authService.logout();
     setUser(null);
     setCurrentPage(Page.HOME);
-    if (window.location.pathname.includes('admin')) {
-      window.history.pushState({}, '', '/');
-    }
   };
 
   const renderPage = () => {
@@ -153,16 +129,9 @@ const App: React.FC = () => {
 
   if (!isLoaded) {
     return (
-      <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center gap-6 z-[100]">
+      <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center z-[100]">
         <ProgressRing size="w-16 h-16" />
-        <div className="flex flex-col items-center gap-2">
-          <h1 className="text-3xl font-bold font-heading tracking-tight text-white opacity-90">SkillShift</h1>
-          <div className="flex gap-1.5 text-blue-500">
-             <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce"></div>
-             <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce delay-100"></div>
-             <div className="w-1.5 h-1.5 rounded-full bg-current animate-bounce delay-200"></div>
-          </div>
-        </div>
+        <h1 className="mt-6 text-2xl font-bold font-heading text-white">SkillShift</h1>
       </div>
     );
   }
