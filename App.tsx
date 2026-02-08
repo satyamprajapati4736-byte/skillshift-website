@@ -13,6 +13,7 @@ import AdminReport from './pages/AdminReport';
 import AdminWeeklyReport from './pages/AdminWeeklyReport';
 import AdminMonthlyReport from './pages/AdminMonthlyReport';
 import { authService } from './services/authService';
+import { dbService } from './services/dbService';
 
 export const ProgressRing = ({ size = "w-12 h-12" }: { size?: string }) => (
   <div className={`relative ${size} flex items-center justify-center`}>
@@ -30,38 +31,54 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authRedirectMessage, setAuthRedirectMessage] = useState<string | null>(null);
 
-  // Initialize App and Auth only once
   useEffect(() => {
-    const initAuth = async () => {
-      // 1. Check for redirect result (Google Login completion)
+    const initApp = async () => {
+      // 1. First, handle any redirect result (Google Login completion)
       try {
-        const redirectedUser = await authService.handleRedirectResult();
-        if (redirectedUser) {
-          setUser(redirectedUser);
-          setCurrentPage(Page.PREPARING);
-        }
+        await authService.handleRedirectResult();
       } catch (err) {
-        console.error("Redirect Error:", err);
+        console.error("Redirect Result Error:", err);
       }
 
-      // 2. Sync local user from authService
-      const currentUser = authService.getCurrentUser();
-      if (currentUser) setUser(currentUser);
-
-      // 3. Subscribe to Firebase Auth changes
-      const unsubscribe = authService.onAuthUpdate((fbUser) => {
-        if (!fbUser) {
-          setUser(prev => {
-            if (prev) {
-              setCurrentPage(Page.HOME);
-              return null;
+      // 2. Set up the auth listener to be the source of truth
+      const unsubscribe = authService.onAuthUpdate(async (fbUser) => {
+        if (fbUser) {
+          // Firebase says we are logged in. Now get the local profile.
+          const localUser = authService.getCurrentUser();
+          if (localUser && localUser.id === fbUser.uid) {
+            setUser(localUser);
+          } else {
+            // Profile missing in session, fetch from DB or create
+            try {
+              const users = await dbService.getAllUsers();
+              const existing = users.find(u => u.id === fbUser.uid);
+              if (existing) {
+                setUser(existing);
+                localStorage.setItem('skillshift_current_user', JSON.stringify(existing));
+              } else {
+                // Create a stub profile if redirect result somehow missed it
+                const newUser = await dbService.createProfile(
+                  fbUser.displayName || "User",
+                  "0000000000",
+                  "Other"
+                );
+                setUser(newUser);
+                localStorage.setItem('skillshift_current_user', JSON.stringify(newUser));
+              }
+            } catch (dbErr) {
+              console.error("Profile Sync Error:", dbErr);
             }
-            return prev;
-          });
+          }
+        } else {
+          setUser(null);
+          localStorage.removeItem('skillshift_current_user');
         }
+        
+        // Finalize loading once we know auth status
+        setIsLoaded(true);
       });
-      
-      // 4. Secret URL detection
+
+      // 3. Secret URL detection
       const path = window.location.pathname;
       if (path === '/admin-overview' || path === '/hidden-admin-panel') {
         setCurrentPage(Page.ADMIN_DASHBOARD);
@@ -73,13 +90,10 @@ const App: React.FC = () => {
         setCurrentPage(Page.ADMIN_MONTHLY_REPORT);
       }
 
-      // 5. Force loading to end
-      setIsLoaded(true);
       return unsubscribe;
     };
 
-    const unsubscribePromise = initAuth();
-    
+    const unsubscribePromise = initApp();
     return () => {
       unsubscribePromise.then(unsub => unsub?.());
     };

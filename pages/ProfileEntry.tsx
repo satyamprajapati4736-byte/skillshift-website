@@ -26,7 +26,7 @@ const ProfileEntry: React.FC<ProfileEntryProps> = ({ onSuccess, onBack, redirect
     setError('');
     setUnauthorizedDomain(null);
     try {
-      // Redirect logic: The response will be handled in App.tsx
+      // Use Redirect logic: The browser will leave the page and return via App.tsx
       await authService.loginWithGoogle();
     } catch (err: any) {
       if (err.message.startsWith("AUTH_DOMAIN_ERROR:")) {
