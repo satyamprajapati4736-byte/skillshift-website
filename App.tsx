@@ -32,21 +32,36 @@ const App: React.FC = () => {
   const [authRedirectMessage, setAuthRedirectMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Restore user from session immediately for UI speed
+    // 1. Instant UI: Load from localStorage if exists
     const cachedUser = authService.getCurrentUser();
-    if (cachedUser) setUser(cachedUser);
+    if (cachedUser) {
+      setUser(cachedUser);
+    }
 
-    // 2. Setup standard Auth listener
+    // 2. Handle Google Login Redirect (if we just came back from Google)
+    const handleAuth = async () => {
+      try {
+        const redirectedUser = await authService.handleRedirectResult();
+        if (redirectedUser) {
+          setUser(redirectedUser);
+        }
+      } catch (err) {
+        console.error("Redirect Error:", err);
+      }
+    };
+    handleAuth();
+
+    // 3. Listen for Firebase Auth changes (Single source of truth)
     const unsubscribe = authService.onAuthUpdate(async (fbUser) => {
       if (fbUser) {
-        // Logged in: Fetch or Sync Profile
         try {
+          // If Firebase says we are logged in, get the actual Firestore profile
           const profile = await dbService.getUserProfile(fbUser.uid);
           if (profile) {
             setUser(profile);
             localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
           } else {
-            // Backup: If user is authed but no DB record, create one
+            // If user is authed but no DB profile, create a basic one
             const newProfile = await dbService.createProfile(
               fbUser.uid, 
               fbUser.displayName || "User", 
@@ -54,22 +69,16 @@ const App: React.FC = () => {
               "Other"
             );
             setUser(newProfile);
-            localStorage.setItem('skillshift_current_user', JSON.stringify(newProfile));
           }
         } catch (err) {
           console.error("Auth sync error:", err);
         }
       } else {
-        // Logged out
+        // Not logged in or logged out
         setUser(null);
         localStorage.removeItem('skillshift_current_user');
       }
       setIsLoaded(true);
-    });
-
-    // 3. Handle Google Redirect completion (if any)
-    authService.handleRedirectResult().then(u => {
-      if (u) setUser(u);
     });
 
     // Admin detection
