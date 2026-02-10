@@ -1,4 +1,3 @@
-
 export enum Page {
   HOME = 'home',
   MENTOR = 'mentor',
@@ -22,6 +21,7 @@ export interface User {
   phone: string;
   gender: Gender;
   role: UserRole;
+  recoveryEmail?: string;
   created_at: string;
 }
 

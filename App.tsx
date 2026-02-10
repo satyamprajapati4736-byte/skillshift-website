@@ -30,60 +30,55 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [authRedirectMessage, setAuthRedirectMessage] = useState<string | null>(null);
+  const [permissionError, setPermissionError] = useState(false);
 
   useEffect(() => {
-    // 1. Handle potential Google Redirect (essential for mobile/web flow)
-    authService.handleRedirectResult().catch(err => console.error("Redirect check failed:", err));
+    let isMounted = true;
 
-    // 2. Setup standard Auth listener - This is the "Heartbeat" of the app
     const unsubscribe = authService.onAuthUpdate(async (fbUser) => {
+      if (!isMounted) return;
+      
       if (fbUser) {
         try {
-          // If Firebase says we have a user, check our database for their profile
-          let profile = await dbService.getUserProfile(fbUser.uid);
-          
-          if (!profile) {
-            // If they are logged into Firebase but don't have a DB record yet (happens on first Google login)
-            profile = await dbService.createProfile(
-              fbUser.uid, 
-              fbUser.displayName || "User", 
-              "", 
-              "Other"
-            );
+          const profile = await dbService.getUserProfile(fbUser.uid);
+          if (profile) {
+            setUser(profile);
+            setPermissionError(false);
+          } else {
+            // New user case - we'll handle this in ProfileEntry mostly,
+            // but if we are here and profile is null, it might be a new Google user 
+            // if we had google login. With phone login, we usually create it at signup.
+            setUser(null);
           }
-          
-          setUser(profile);
-          // Sync with local storage for snappy feel on reloads
-          localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
-        } catch (err) {
-          console.error("Profile sync error:", err);
+        } catch (err: any) {
+          console.error("Auth Sync Firestore Error:", err);
+          if (err.code === 'permission-denied') {
+            setPermissionError(true);
+          }
         }
       } else {
-        // User logged out
         setUser(null);
-        localStorage.removeItem('skillshift_current_user');
       }
-      
-      // Crucial: Only set isLoaded to true AFTER the initial check is complete
       setIsLoaded(true);
     });
 
-    // Admin Route detection (Optional - if URL contains specific segments)
     const path = window.location.pathname;
     if (path.includes('admin-overview')) setCurrentPage(Page.ADMIN_DASHBOARD);
     if (path.includes('admin-daily-report')) setCurrentPage(Page.ADMIN_REPORT);
 
-    return () => unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []); 
 
   const handlePageChange = (page: Page, message?: string) => {
-    // Prevent unauthorized access to sensitive pages
     if (page === Page.ROADMAPS && !user) {
-      setAuthRedirectMessage(message || "Roadmap dekhne ke liye pehle login karein.");
+      setAuthRedirectMessage(message || "Roadmap dekhne ke liye login karein.");
       setCurrentPage(Page.PROFILE_ENTRY);
       return;
     }
-    if (page !== Page.PROFILE_ENTRY) setAuthRedirectMessage(null);
+    setAuthRedirectMessage(null);
     setCurrentPage(page);
   };
 
@@ -92,6 +87,35 @@ const App: React.FC = () => {
     setUser(null);
     setCurrentPage(Page.HOME);
   };
+
+  if (permissionError) {
+    return (
+      <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center z-[200] p-10 text-center">
+        <div className="text-4xl mb-6">🚫</div>
+        <h1 className="text-2xl font-bold text-white mb-4">Firestore Permission Denied</h1>
+        <p className="text-slate-400 text-sm mb-8 leading-relaxed">
+          Bhai, aapke Firebase Console mein "Firestore Rules" update nahi hain. 
+          Please "Firestore Database > Rules" tab mein ye paste karein:
+        </p>
+        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-left font-mono text-[10px] text-pink-400 overflow-x-auto w-full max-w-sm">
+          rules_version = '2';<br/>
+          service cloud.firestore &#123;<br/>
+          &nbsp;&nbsp;match /databases/&#123;database&#125;/documents &#123;<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;match /&#123;document=**&#125; &#123;<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;allow read, write: if request.auth != null;<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;&#125;<br/>
+          &nbsp;&nbsp;&#125;<br/>
+          &#125;
+        </div>
+        <button 
+          onClick={() => window.location.reload()}
+          className="mt-10 px-8 py-3 bg-blue-600 text-white rounded-xl font-bold uppercase tracking-widest text-xs"
+        >
+          Rules Update Kar Diye (Reload)
+        </button>
+      </div>
+    );
+  }
 
   const renderPage = () => {
     switch (currentPage) {
@@ -107,7 +131,6 @@ const App: React.FC = () => {
             onSuccess={(u) => {
               setUser(u);
               setAuthRedirectMessage(null);
-              // After manual login, take them to the preparing screen
               setCurrentPage(Page.PREPARING);
             }} 
             onBack={() => handlePageChange(Page.HOME)} 
@@ -131,7 +154,7 @@ const App: React.FC = () => {
         <ProgressRing size="w-16 h-16" />
         <div className="mt-8 flex flex-col items-center gap-2 animate-pulse">
           <h1 className="text-3xl font-bold font-heading text-white tracking-widest uppercase">SkillShift</h1>
-          <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase">Syncing Security</p>
+          <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase">Checking Database</p>
         </div>
       </div>
     );

@@ -10,254 +10,226 @@ interface ProfileEntryProps {
 }
 
 const ProfileEntry: React.FC<ProfileEntryProps> = ({ onSuccess, onBack, redirectMessage }) => {
-  const [mode, setMode] = useState<'CHOICE' | 'EMAIL_SIGNUP' | 'EMAIL_LOGIN'>('CHOICE');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  
+  // Form fields
   const [phone, setPhone] = useState('');
-  const [gender, setGender] = useState<Gender | null>(null);
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [gender, setGender] = useState<Gender>('Other');
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [unauthorizedDomain, setUnauthorizedDomain] = useState<string | null>(null);
-  const [copySuccess, setCopySuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError('');
-    setUnauthorizedDomain(null);
-    try {
-      // Use Redirect logic: The browser will leave the page and return via App.tsx
-      await authService.loginWithGoogle();
-    } catch (err: any) {
-      if (err.message.startsWith("AUTH_DOMAIN_ERROR:")) {
-        const domain = err.message.split(":")[1];
-        setUnauthorizedDomain(domain);
-        setError(`Naya domain whitelist karna padega.`);
-      } else if (err.message.startsWith("AUTH_FAILED:")) {
-        const code = err.message.split(":")[1];
-        setError(`Login Failed: ${code}. Please open in Chrome/Safari.`);
-      } else {
-        setError("Something went wrong. Use Chrome or Safari.");
-      }
-      setLoading(false);
-    }
-  };
-
-  const handleEmailAction = async (e: React.FormEvent) => {
+  const handleAction = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    setUnauthorizedDomain(null);
+    setSuccessMsg('');
+
     try {
-      if (mode === 'EMAIL_SIGNUP') {
-        if (!gender) throw new Error("Select gender");
-        if (phone.length !== 10) throw new Error("Enter 10-digit phone");
-        const user = await authService.signUpWithEmail(email, password, name, gender, phone);
+      if (isForgotPassword) {
+        if (!phone || phone.length < 10) throw new Error("Please enter a valid 10-digit phone number.");
+        await authService.resetPassword(phone);
+        setSuccessMsg("Password reset link aapke registered recovery email par bhej diya gaya hai.");
+        setTimeout(() => setIsForgotPassword(false), 3000);
+      } else if (isLogin) {
+        if (!phone || !password) throw new Error("Phone and password are required.");
+        const user = await authService.signInWithPhone(phone, password);
         onSuccess(user);
       } else {
-        const user = await authService.signInWithEmail(email, password);
+        if (!phone || !password || !name || !recoveryEmail) throw new Error("Saari details bharna zaroori hai.");
+        if (phone.length !== 10) throw new Error("Phone number 10 digits ka hona chahiye.");
+        const user = await authService.signUpWithPhone(name, phone, gender, password, recoveryEmail);
         onSuccess(user);
       }
     } catch (err: any) {
-      if (err.message.startsWith("AUTH_DOMAIN_ERROR:")) {
-        const domain = err.message.split(":")[1];
-        setUnauthorizedDomain(domain);
-        setError(`Domain authorization needed.`);
-      } else if (err.message.startsWith("AUTH_FAILED:")) {
-        const code = err.message.split(":")[1];
-        setError(`Auth Error: ${code}`);
-      } else {
-        setError(err.message || "Auth failed.");
-      }
+      setError(err.message || "An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
   };
 
-  const copyToClipboard = () => {
-    if (unauthorizedDomain) {
-      navigator.clipboard.writeText(unauthorizedDomain);
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    }
-  };
-
   return (
-    <div className="flex flex-col gap-10 animate-fadeIn py-8 px-2">
-      <div className="flex flex-col gap-3 text-center">
+    <div className="flex flex-col gap-8 animate-fadeIn py-6 px-1">
+      {/* Header */}
+      <div className="text-center flex flex-col gap-2">
         {redirectMessage && (
-          <div className="mb-4 p-4 bg-blue-500/5 border border-blue-500/20 rounded-2xl flex items-center justify-center gap-3 animate-slideDown">
-             <span className="text-xl">✨</span>
-             <p className="text-sm font-medium text-blue-300 leading-tight">{redirectMessage}</p>
+          <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-blue-400 text-xs font-bold animate-slideDown">
+            {redirectMessage}
           </div>
         )}
-        <h2 className="text-4xl font-bold font-heading tracking-tight text-white">
-          {mode === 'CHOICE' ? "Join SkillShift" : mode === 'EMAIL_SIGNUP' ? "Create Account" : "Welcome Back"}
+        <h2 className="text-4xl font-bold font-heading text-white">
+          {isForgotPassword ? "Reset Password" : isLogin ? "Welcome Back" : "Create Account"}
         </h2>
-        <p className="text-slate-400 text-base">Your future starts with one click.</p>
+        <p className="text-slate-500 text-sm">
+          {isForgotPassword 
+            ? "Enter your phone to get reset link." 
+            : isLogin ? "Login using your phone number." : "Join SkillShift to build your future."}
+        </p>
       </div>
 
-      {error && !unauthorizedDomain && (
-        <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-4 rounded-2xl text-[11px] font-bold animate-shake text-center leading-relaxed">
+      {/* Toggle Tabs */}
+      {!isForgotPassword && (
+        <div className="flex bg-slate-900/50 p-1.5 rounded-2xl border border-slate-800">
+          <button 
+            onClick={() => { setIsLogin(true); setError(''); }}
+            className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${isLogin ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}
+          >
+            Login
+          </button>
+          <button 
+            onClick={() => { setIsLogin(false); setError(''); }}
+            className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${!isLogin ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500'}`}
+          >
+            Sign Up
+          </button>
+        </div>
+      )}
+
+      {/* Form Errors / Success */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-2xl text-[11px] font-bold animate-shake text-center">
           {error}
         </div>
       )}
-
-      {unauthorizedDomain && (
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex flex-col gap-4 shadow-2xl animate-fadeIn">
-          <div className="flex items-center justify-between">
-             <span className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Action Required</span>
-             <button onClick={() => window.location.reload()} className="text-[10px] text-blue-400 font-bold uppercase underline">Refresh</button>
-          </div>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Aapne URL change kiya hai. Is naye URL ko Firebase Console mein whitelist karna hoga:
-          </p>
-          <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 font-mono text-xs text-pink-400 break-all text-center">
-            {unauthorizedDomain}
-          </div>
-          <button 
-            onClick={copyToClipboard}
-            className={`w-full py-4 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-              copySuccess ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'
-            }`}
-          >
-            {copySuccess ? 'Copied!' : 'Copy New URL'}
-            {!copySuccess && <Icons.Check />}
-          </button>
-          <div className="p-4 bg-slate-950/50 rounded-2xl border border-slate-800 space-y-2">
-             <p className="text-[10px] text-slate-400 leading-relaxed">
-               1. Go to <b>Firebase Console</b><br/>
-               2. Authentication {'->'} Settings tab<br/>
-               3. <b>Authorized Domains</b> mein ye URL add karein.
-             </p>
-          </div>
+      {successMsg && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 p-4 rounded-2xl text-[11px] font-bold text-center">
+          {successMsg}
         </div>
       )}
 
-      {mode === 'CHOICE' ? (
-        <div className="flex flex-col gap-4">
-          <button 
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full py-5 bg-white text-slate-900 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all"
-          >
-            {loading ? <div className="w-5 h-5 border-2 border-slate-400 border-t-slate-800 rounded-full animate-spin"></div> : (
+      {/* Form */}
+      <form onSubmit={handleAction} className="flex flex-col gap-5">
+        
+        {/* Phone Input (Common) */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] uppercase font-black text-slate-500 ml-1 tracking-widest">Phone Number</label>
+          <div className="relative">
+             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">+91</span>
+             <input
+               type="tel"
+               maxLength={10}
+               required
+               placeholder="9876543210"
+               value={phone}
+               onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+               className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-14 pr-4 py-4 text-white focus:outline-none focus:border-blue-500 transition-all text-sm"
+             />
+          </div>
+        </div>
+
+        {!isForgotPassword && (
+          <>
+            {/* Signup Only Fields */}
+            {!isLogin && (
               <>
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                Continue with Google
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] uppercase font-black text-slate-500 ml-1 tracking-widest">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4 text-white focus:outline-none focus:border-blue-500 transition-all text-sm"
+                  />
+                </div>
+                
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] uppercase font-black text-slate-500 ml-1 tracking-widest">Recovery Email</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="name@example.com"
+                    value={recoveryEmail}
+                    onChange={(e) => setRecoveryEmail(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4 text-white focus:outline-none focus:border-blue-500 transition-all text-sm"
+                  />
+                  <p className="text-[9px] text-slate-600 ml-1 italic">* Password bhoolne par ispar reset link aayega.</p>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] uppercase font-black text-slate-500 ml-1 tracking-widest">Gender</label>
+                  <div className="flex gap-2">
+                    {(['Male', 'Female', 'Other'] as Gender[]).map(g => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setGender(g)}
+                        className={`flex-1 py-3 rounded-xl border text-[10px] font-bold uppercase transition-all ${gender === g ? 'bg-blue-600/20 border-blue-500 text-blue-400' : 'bg-slate-900 border-slate-800 text-slate-600'}`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </>
             )}
-          </button>
 
-          <button 
-            onClick={() => setMode('EMAIL_LOGIN')}
-            className="w-full py-5 bg-slate-900 border border-slate-800 rounded-2xl font-bold text-slate-300 flex items-center justify-center gap-3 active:scale-95 transition-all"
-          >
-            <span>Login with Email</span>
-          </button>
-          
-          <button 
-            onClick={() => setMode('EMAIL_SIGNUP')}
-            className="text-xs text-blue-400 font-bold uppercase tracking-widest text-center mt-2"
-          >
-            New here? Sign Up with Email
-          </button>
-        </div>
-      ) : (
-        <form onSubmit={handleEmailAction} className="flex flex-col gap-6">
-          <input
-            type="email"
-            required
-            placeholder="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-slate-900 border-2 border-slate-800 rounded-2xl px-6 py-4 text-lg focus:outline-none focus:border-blue-500 transition-all text-white shadow-inner"
-          />
-          <input
-            type="password"
-            required
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-slate-900 border-2 border-slate-800 rounded-2xl px-6 py-4 text-lg focus:outline-none focus:border-blue-500 transition-all text-white shadow-inner"
-          />
-
-          {mode === 'EMAIL_SIGNUP' && (
-            <>
+            {/* Password Field (Common Login/Signup) */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase font-black text-slate-500 ml-1 tracking-widest">Password</label>
               <input
-                type="text"
+                type="password"
                 required
-                placeholder="Full Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full bg-slate-900 border-2 border-slate-800 rounded-2xl px-6 py-4 text-lg focus:outline-none focus:border-blue-500 transition-all text-white shadow-inner"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-4 text-white focus:outline-none focus:border-blue-500 transition-all text-sm"
               />
-              <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-lg">+91</span>
-                <input
-                  type="tel"
-                  required
-                  maxLength={10}
-                  placeholder="Phone Number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                  className="w-full bg-slate-900 border-2 border-slate-800 rounded-2xl pl-16 pr-6 py-4 text-lg focus:outline-none focus:border-blue-500 transition-all text-white shadow-inner"
-                />
-              </div>
-              <div className="flex gap-4">
-                {(['Male', 'Female'] as Gender[]).map((g) => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setGender(g)}
-                    className={`flex-1 py-4 rounded-2xl border-2 font-bold transition-all ${
-                      gender === g ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-900 border-slate-800 text-slate-500'
-                    }`}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
+              {isLogin && (
+                <button 
+                  type="button"
+                  onClick={() => setIsForgotPassword(true)}
+                  className="text-[10px] text-blue-500 font-bold uppercase tracking-widest self-end mt-1 hover:underline"
+                >
+                  Forgot Password?
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-5 bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl font-bold text-white shadow-xl neon-glow-blue flex items-center justify-center gap-3 active:scale-95 transition-all mt-4 disabled:opacity-50"
+        >
+          {loading ? (
+            <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+          ) : (
+            <>
+              <span>{isForgotPassword ? "Send Reset Link" : isLogin ? "Login Now" : "Create My Account"}</span>
+              <Icons.ArrowRight />
             </>
           )}
+        </button>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-5 bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl font-bold text-xl shadow-xl neon-glow-blue flex items-center justify-center gap-4 active:scale-95 transition-all"
-          >
-            {loading ? <div className="w-6 h-6 border-3 border-white/20 border-t-white rounded-full animate-spin"></div> : (
-              <>
-                <span>{mode === 'EMAIL_SIGNUP' ? 'Create Account' : 'Login'}</span>
-                <Icons.ArrowRight />
-              </>
-            )}
-          </button>
-          
+        {isForgotPassword && (
           <button 
             type="button"
-            onClick={() => setMode('CHOICE')}
-            className="text-xs font-bold text-slate-600 uppercase tracking-widest text-center"
+            onClick={() => setIsForgotPassword(false)}
+            className="text-[10px] text-slate-600 font-bold uppercase tracking-widest text-center mt-2 hover:text-slate-400"
           >
-            Back to Options
+            Back to Login
           </button>
-        </form>
-      )}
+        )}
+      </form>
 
       <button
         onClick={onBack}
-        className="text-xs font-bold text-slate-600 uppercase tracking-[0.3em] text-center hover:text-slate-400 transition-colors py-4"
+        className="text-[10px] font-bold text-slate-700 uppercase tracking-[0.4em] text-center hover:text-slate-500 transition-colors py-4 mt-4"
       >
         Go Back
       </button>
 
       <style>{`
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
         .animate-shake { animation: shake 0.2s ease-in-out 0s 2; }
       `}</style>
     </div>
