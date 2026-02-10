@@ -1,3 +1,4 @@
+
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -5,7 +6,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
   getRedirectResult,
-  signInWithRedirect,
+  signInWithPopup,
   User as FirebaseUser
 } from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
@@ -16,9 +17,28 @@ import { dbService } from "./dbService";
 const getVirtualEmail = (phone: string) => `${phone.trim()}@skillshift.internal`;
 
 export const authService = {
-  loginWithGoogle: async (): Promise<void> => {
+  loginWithGoogle: async (): Promise<User> => {
     try {
-      await signInWithRedirect(auth, googleProvider);
+      // Using Popup for that "Login Panel" experience
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+      
+      // Check if user already has a profile
+      let profile = await dbService.getUserProfile(fbUser.uid);
+      
+      if (!profile) {
+        // Create new profile if it doesn't exist
+        profile = await dbService.createProfile(
+          fbUser.uid,
+          fbUser.displayName || "User",
+          "", // Phone unknown from Google usually
+          'Other',
+          fbUser.email || ""
+        );
+      }
+      
+      localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
+      return profile;
     } catch (error: any) {
       console.error("Google Login Error:", error);
       throw error;
@@ -31,18 +51,9 @@ export const authService = {
       if (result?.user) {
         const fbUser = result.user;
         let profile = await dbService.getUserProfile(fbUser.uid);
-        
         if (!profile) {
-          // If no profile exists, create one using Google info
-          profile = await dbService.createProfile(
-            fbUser.uid,
-            fbUser.displayName || "User",
-            fbUser.phoneNumber || "", // Google might not provide this
-            'Other',
-            fbUser.email || ""
-          );
+          profile = await dbService.createProfile(fbUser.uid, fbUser.displayName || "User", "", 'Other', fbUser.email || "");
         }
-        
         localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
         return profile;
       }
@@ -54,42 +65,27 @@ export const authService = {
   },
 
   signUpWithPhone: async (name: string, phone: string, gender: Gender, password: string, recoveryEmail: string): Promise<User> => {
-    try {
-      const email = getVirtualEmail(phone);
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-      const user = await dbService.createProfile(result.user.uid, name, phone, gender, recoveryEmail);
-      localStorage.setItem('skillshift_current_user', JSON.stringify(user));
-      return user;
-    } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') {
-        throw new Error("Is number se account pehle se bana hai.");
-      }
-      throw error;
-    }
+    const email = getVirtualEmail(phone);
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    const user = await dbService.createProfile(result.user.uid, name, phone, gender, recoveryEmail);
+    localStorage.setItem('skillshift_current_user', JSON.stringify(user));
+    return user;
   },
 
   signInWithPhone: async (phone: string, password: string): Promise<User> => {
-    try {
-      const email = getVirtualEmail(phone);
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      const profile = await dbService.getUserProfile(result.user.uid);
-      if (!profile) throw new Error("Profile found nahi hua.");
-      localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
-      return profile;
-    } catch (error: any) {
-      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        throw new Error("Phone ya password galat hai.");
-      }
-      throw error;
-    }
+    const email = getVirtualEmail(phone);
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    const profile = await dbService.getUserProfile(result.user.uid);
+    if (!profile) throw new Error("Profile creation skipped? Please contact support.");
+    localStorage.setItem('skillshift_current_user', JSON.stringify(profile));
+    return profile;
   },
 
   resetPassword: async (phone: string): Promise<void> => {
     const profile = await dbService.getProfileByPhone(phone);
     if (!profile || !profile.recoveryEmail) {
-      throw new Error("Is number ke liye recovery email set nahi hai.");
+      throw new Error("Is number ke liye koi recovery email nahi mili.");
     }
-    if (profile.role === 'admin') throw new Error("Admin password reset restricted.");
     await sendPasswordResetEmail(auth, profile.recoveryEmail);
   },
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Page, User } from './types';
 import Layout from './components/Layout';
@@ -45,14 +46,11 @@ const App: React.FC = () => {
             setUser(profile);
             setPermissionError(false);
           } else {
-            // New user case - we'll handle this in ProfileEntry mostly,
-            // but if we are here and profile is null, it might be a new Google user 
-            // if we had google login. With phone login, we usually create it at signup.
             setUser(null);
           }
         } catch (err: any) {
-          console.error("Auth Sync Firestore Error:", err);
-          if (err.code === 'permission-denied') {
+          console.error("Firestore Sync Error:", err);
+          if (err.code === 'permission-denied' || err.message?.includes('permission')) {
             setPermissionError(true);
           }
         }
@@ -61,10 +59,6 @@ const App: React.FC = () => {
       }
       setIsLoaded(true);
     });
-
-    const path = window.location.pathname;
-    if (path.includes('admin-overview')) setCurrentPage(Page.ADMIN_DASHBOARD);
-    if (path.includes('admin-daily-report')) setCurrentPage(Page.ADMIN_REPORT);
 
     return () => {
       isMounted = false;
@@ -90,14 +84,14 @@ const App: React.FC = () => {
 
   if (permissionError) {
     return (
-      <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center z-[200] p-10 text-center">
-        <div className="text-4xl mb-6">🚫</div>
-        <h1 className="text-2xl font-bold text-white mb-4">Firestore Permission Denied</h1>
-        <p className="text-slate-400 text-sm mb-8 leading-relaxed">
-          Bhai, aapke Firebase Console mein "Firestore Rules" update nahi hain. 
-          Please "Firestore Database > Rules" tab mein ye paste karein:
+      <div className="fixed inset-0 bg-[#020617] flex flex-col items-center justify-center z-[200] p-8 text-center animate-fadeIn">
+        <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center text-4xl mb-6 shadow-2xl">🔒</div>
+        <h1 className="text-2xl font-bold text-white mb-2 font-heading">Database Locked</h1>
+        <p className="text-slate-400 text-sm mb-8 leading-relaxed max-w-xs">
+          Bhai, Firestore rules change karne honge. <br/>
+          Go to **Firebase Console > Firestore > Rules** and paste this:
         </p>
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-left font-mono text-[10px] text-pink-400 overflow-x-auto w-full max-w-sm">
+        <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 text-left font-mono text-[10px] text-blue-400 overflow-x-auto w-full max-w-sm mb-8">
           rules_version = '2';<br/>
           service cloud.firestore &#123;<br/>
           &nbsp;&nbsp;match /databases/&#123;database&#125;/documents &#123;<br/>
@@ -109,9 +103,9 @@ const App: React.FC = () => {
         </div>
         <button 
           onClick={() => window.location.reload()}
-          className="mt-10 px-8 py-3 bg-blue-600 text-white rounded-xl font-bold uppercase tracking-widest text-xs"
+          className="w-full max-w-sm py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all"
         >
-          Rules Update Kar Diye (Reload)
+          Check Again (Reload)
         </button>
       </div>
     );
@@ -150,11 +144,11 @@ const App: React.FC = () => {
 
   if (!isLoaded) {
     return (
-      <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center z-[100]">
+      <div className="fixed inset-0 bg-[#020617] flex flex-col items-center justify-center z-[100]">
         <ProgressRing size="w-16 h-16" />
-        <div className="mt-8 flex flex-col items-center gap-2 animate-pulse">
-          <h1 className="text-3xl font-bold font-heading text-white tracking-widest uppercase">SkillShift</h1>
-          <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase">Checking Database</p>
+        <div className="mt-8 flex flex-col items-center gap-2">
+          <h1 className="text-3xl font-bold font-heading text-white tracking-widest uppercase animate-pulse">SkillShift</h1>
+          <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase">Syncing Data</p>
         </div>
       </div>
     );
