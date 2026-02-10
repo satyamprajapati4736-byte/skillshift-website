@@ -4,33 +4,30 @@ import { User } from '../types';
 import { ProgressRing } from '../App';
 
 interface PreparingRoadmapProps {
-  user: User;
+  user?: User | null;
   onComplete: () => void;
 }
 
 const PreparingRoadmap: React.FC<PreparingRoadmapProps> = ({ user, onComplete }) => {
   useEffect(() => {
-    // Simulate the roadmap preparation process and transition automatically
     const timer = setTimeout(() => {
       onComplete();
-    }, 4500); // 4.5 seconds for a nice "thinking" feel that isn't too long
+    }, 4500);
 
     return () => clearTimeout(timer);
   }, [onComplete]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] text-center px-6 animate-fadeIn">
-      {/* Greeting */}
       <div className="flex flex-col gap-2 mb-12">
         <h2 className="text-3xl font-bold font-heading text-white">
-          Hi {user.name.split(' ')[0]} 👋
+          {user ? `Hi ${user.name.split(' ')[0]} 👋` : "Hi Explorer 👋"}
         </h2>
         <p className="text-slate-400 text-sm font-medium">
           Bas ek chhota sa step aur, phir start karte hain.
         </p>
       </div>
 
-      {/* Main Focus / Progress Visual */}
       <div className="flex flex-col items-center gap-10 py-10">
         <div className="relative">
           <ProgressRing size="w-24 h-24" />
@@ -49,7 +46,6 @@ const PreparingRoadmap: React.FC<PreparingRoadmapProps> = ({ user, onComplete })
         </div>
       </div>
 
-      {/* Disabled Action Indicator */}
       <div className="w-full mt-10">
         <button
           disabled
@@ -60,7 +56,6 @@ const PreparingRoadmap: React.FC<PreparingRoadmapProps> = ({ user, onComplete })
         </button>
       </div>
 
-      {/* Background Decor */}
       <div className="fixed inset-0 pointer-events-none z-[-1] overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-blue-600/5 blur-[120px] rounded-full"></div>
       </div>

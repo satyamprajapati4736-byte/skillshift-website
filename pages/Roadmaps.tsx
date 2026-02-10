@@ -50,7 +50,6 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
     "Finalizing custom roadmap"
   ];
 
-  // Persistence: Check for previously generated roadmap on mount to save cost & time
   useEffect(() => {
     const cached = localStorage.getItem('skillshift_active_roadmap');
     if (cached) {
@@ -86,29 +85,21 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
   }, [state]);
 
   const startEngine = () => {
-    if (!user) {
-      onAuthRequired("Roadmap dekhne ke liye pehle apni basic details bharo.");
-      return;
-    }
+    // Bina login ke bhi chalega
     setState(EngineState.QUESTIONNAIRE);
     setChatHistory([{ role: 'ai', text: QUESTIONS[0].text }]);
   };
 
   const openLibrary = () => {
-    if (!user) {
-      onAuthRequired("Skill Library dekhne ke liye pehle apni basic details bharo.");
-      return;
-    }
+    // Skill library is public now
     setState(EngineState.LIBRARY);
   };
 
   const syncToSheet = async (roadmapName: string) => {
-    if (!user) return;
+    if (!user) return; // Only sync if user is logged in
     const res = await sheetService.syncToGoogleSheet(user, roadmapName);
     if (res.success) {
-      setNotification({ show: true, message: "Your roadmap is ready.", type: 'success' });
-    } else {
-      setNotification({ show: true, message: "Something went wrong. Please try again.", type: 'error' });
+      setNotification({ show: true, message: "Your roadmap is saved.", type: 'success' });
     }
   };
 
@@ -125,12 +116,16 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
     if (roadmap) {
       handleNewRoadmap(roadmap);
       if (user) {
-        const record = await dbService.saveRoadmap(user.id, roadmap);
-        setActiveRoadmapRecord(record);
-        await syncToSheet(roadmap.skillName);
+        try {
+          const record = await dbService.saveRoadmap(user.id, roadmap);
+          setActiveRoadmapRecord(record);
+          await syncToSheet(roadmap.skillName);
+        } catch (e) {
+          console.warn("Guest roadmap not saved to DB");
+        }
       }
     } else {
-      setNotification({ show: true, message: "Something went wrong. Please try again.", type: 'error' });
+      setNotification({ show: true, message: "Engine stuck! Retry karein.", type: 'error' });
       setState(EngineState.INTRO);
     }
   };
@@ -159,19 +154,23 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
       if (roadmap) {
         handleNewRoadmap(roadmap);
         if (user) {
-          const record = await dbService.saveRoadmap(user.id, roadmap);
-          setActiveRoadmapRecord(record);
-          await syncToSheet(roadmap.skillName);
+          try {
+            const record = await dbService.saveRoadmap(user.id, roadmap);
+            setActiveRoadmapRecord(record);
+            await syncToSheet(roadmap.skillName);
+          } catch (e) {
+            console.warn("Guest roadmap not saved to DB");
+          }
         }
       } else {
-        setNotification({ show: true, message: "Something went wrong. Please try again.", type: 'error' });
+        setNotification({ show: true, message: "Failed to generate. Retry.", type: 'error' });
         setState(EngineState.INTRO);
       }
     }
   };
 
   const handleDownloadPDF = async () => {
-    if (!user || !generatedData) return;
+    if (!generatedData) return;
     setDownloading(true);
 
     try {
@@ -189,7 +188,6 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
         }
       };
 
-      // Header
       doc.setFont("helvetica", "bold");
       doc.setFontSize(22);
       doc.setTextColor(59, 130, 246);
@@ -204,7 +202,7 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
       doc.setFontSize(10);
       doc.setTextColor(100);
       doc.setFont("helvetica", "normal");
-      doc.text(`User: ${user.name} | Goal: ${generatedData.userGoal}`, margin, y);
+      doc.text(`User: ${user ? user.name : "Guest Explorer"} | Goal: ${generatedData.userGoal}`, margin, y);
       y += 15;
 
       // Overview
@@ -266,7 +264,6 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
       doc.text(earningLines, margin, y);
       y += (earningLines.length * 5) + 12;
 
-      // Final Note
       checkPageBreak(25);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
@@ -283,8 +280,8 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
       doc.save(fileName);
 
     } catch (err) {
-      console.error("PDF generation failed:", err);
-      setNotification({ show: true, message: "PDF generate nahi ho pa rahi. Page refresh karo.", type: 'error' });
+      console.error("PDF failure:", err);
+      setNotification({ show: true, message: "PDF issue. Retry karein.", type: 'error' });
     } finally {
       setDownloading(false);
     }
@@ -298,7 +295,6 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
 
   return (
     <>
-      {/* Toast Notification */}
       {notification && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] animate-slideDown px-4 w-full max-w-sm">
           <div className={`p-4 rounded-2xl shadow-2xl backdrop-blur-md border border-white/10 flex items-center gap-3 ${
@@ -320,8 +316,8 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
             </div>
             <h2 className="text-3xl font-bold font-heading text-white">Roadmap Engine</h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Confused ho? Apna custom roadmap banao. <br/>
-              Bas chhota sa questionnaire aur tera path ready.
+              Apna custom roadmap banao. <br/>
+              No login required. Bas chhota sa quiz aur tera path ready.
             </p>
           </div>
 
@@ -341,17 +337,6 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
               <span>Browse Skill Library</span>
               <Icons.Book />
             </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 mt-4">
-            <div className="glass-card p-4 rounded-xl text-center border-slate-800">
-                <div className="text-lg mb-1">🎯</div>
-                <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Personalized</div>
-            </div>
-            <div className="glass-card p-4 rounded-xl text-center border-slate-800">
-                <div className="text-lg mb-1">📄</div>
-                <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Save as PDF</div>
-            </div>
           </div>
         </div>
       )}
@@ -386,7 +371,7 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
         <div className="flex flex-col h-[calc(100vh-220px)]">
           <div className="flex items-center gap-2 mb-4 text-slate-500">
             <button onClick={() => setState(EngineState.INTRO)} className="p-1"><div className="rotate-180"><Icons.ArrowRight /></div></button>
-            <span className="text-xs font-bold uppercase tracking-wider">Step {currentQuestionIndex + 1} of 5</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Question {currentQuestionIndex + 1}</span>
           </div>
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
@@ -439,7 +424,6 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
 
       {state === EngineState.PREVIEW && generatedData && (
         <div className="flex flex-col animate-fadeIn">
-          {/* Sticky Toolbar */}
           <div className="no-print sticky top-16 z-40 bg-slate-950/95 backdrop-blur-md py-4 border-b border-slate-800 -mx-5 px-5 mb-8 flex items-center justify-between">
             <button 
               onClick={resetEngine} 
@@ -448,117 +432,44 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
               <div className="rotate-180 scale-75"><Icons.ArrowRight /></div> 
               New Quiz
             </button>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={handleDownloadPDF} 
-                disabled={downloading}
-                className={`px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 bg-pink-600 text-white neon-glow-pink`}
-              >
-                {downloading ? (
-                  <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                ) : <Icons.Zap />}
-                {downloading ? 'Preparing...' : 'Download Custom PDF'}
-              </button>
-            </div>
+            <button 
+              onClick={handleDownloadPDF} 
+              disabled={downloading}
+              className="px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 bg-pink-600 text-white neon-glow-pink disabled:opacity-50"
+            >
+              {downloading ? (
+                <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+              ) : <Icons.Zap />}
+              {downloading ? 'Preparing...' : 'Download PDF'}
+            </button>
           </div>
 
-          {/* Roadmap Content */}
-          <div className="print-area glass-card rounded-[2.5rem] p-6 sm:p-8 border-blue-500/20 mb-20 relative overflow-hidden print:bg-white print:text-black print:p-12 print:border-none print:shadow-none print:max-w-none">
-            <div className="mb-16 text-center border-b border-slate-800/50 print:border-gray-200 pb-10 pt-4 animate-slideUp">
-                <h1 className="text-3xl sm:text-4xl font-bold font-heading mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-pink-500 leading-[1.2] print:text-black print:bg-none print:text-5xl uppercase tracking-tight break-words">
+          <div className="glass-card rounded-[2.5rem] p-6 border-blue-500/20 mb-20 relative overflow-hidden">
+            <div className="mb-10 text-center border-b border-slate-800/50 pb-10">
+                <h1 className="text-3xl font-bold font-heading mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-pink-500 uppercase">
                   {generatedData.skillName}
                 </h1>
-                <p className="text-slate-500 print:text-gray-500 text-[10px] font-bold uppercase tracking-[0.3em] mb-8">
+                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em]">
                   30-Day Custom Roadmap
                 </p>
-                
-                <div className="p-5 bg-slate-900/60 rounded-3xl border border-slate-800 text-left print:bg-gray-50 print:border-gray-300">
-                  <div className="flex flex-col gap-4">
-                    <div>
-                      <span className="text-[10px] font-bold text-blue-500 uppercase tracking-[0.2em] block mb-2">Goal: {generatedData.userGoal}</span>
-                      <p className="text-sm text-slate-200 print:text-black font-medium leading-relaxed italic">"{generatedData.whyThisSkill || generatedData.overview}"</p>
-                    </div>
-                  </div>
-                </div>
             </div>
 
-            <div className="space-y-16">
-                {generatedData.dailyPlan?.map((day: any, idx: number) => {
-                  const isWeeklyReview = (idx + 1) % 7 === 0;
-                  const weekNum = (idx + 1) / 7;
-                  const weekReview = generatedData.weeklyReview?.find((r: any) => r.week === weekNum);
-
-                  return (
-                    <React.Fragment key={day.day}>
-                      <div className="flex gap-6 sm:gap-8 relative group break-inside-avoid">
-                        <div className="flex flex-col items-center">
-                          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl sm:rounded-3xl bg-slate-900 flex items-center justify-center font-bold text-blue-400 border border-slate-800 print:border-gray-400 print:text-black print:bg-gray-100 shadow-xl">
-                            {day.day}
-                          </div>
-                          {idx !== generatedData.dailyPlan.length - 1 && <div className="w-px flex-1 bg-slate-800 my-4 print:bg-gray-200 opacity-50"></div>}
-                        </div>
-                        
-                        <div className="flex-1 pb-10">
-                          <div className="flex items-start justify-between mb-4">
-                            <h4 className="text-lg sm:text-xl font-bold text-white print:text-black leading-tight pr-4">{day.title}</h4>
-                            <span className="text-[9px] bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full border border-blue-500/20 font-bold print:bg-gray-100 print:text-black uppercase whitespace-nowrap">{day.timeMinutes}m</span>
-                          </div>
-                          
-                          <div className="space-y-6">
-                            <div className="text-[13px] text-slate-400 print:text-gray-700 leading-relaxed">
-                              <span className="text-blue-500 font-bold uppercase tracking-widest text-[8px] block mb-1">Concept</span> {day.learn}
-                            </div>
-                            
-                            <div className="p-5 bg-gradient-to-br from-blue-500/10 to-pink-500/5 rounded-2xl border border-blue-500/10 print:bg-gray-50 print:border-gray-200">
-                              <span className="text-pink-500 font-bold uppercase tracking-widest text-[8px] block mb-2">Today's Mission</span>
-                              <p className="text-[14px] text-slate-100 print:text-black font-semibold leading-relaxed">{day.task}</p>
-                            </div>
-                          </div>
-                        </div>
+            <div className="space-y-12">
+                {generatedData.dailyPlan?.map((day: any) => (
+                  <div key={day.day} className="flex gap-4 relative break-inside-avoid">
+                    <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center font-bold text-blue-400 border border-slate-800 flex-shrink-0">
+                      {day.day}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-lg font-bold text-white mb-3">{day.title}</h4>
+                      <p className="text-sm text-slate-400 mb-4">{day.task}</p>
+                      <div className="p-4 bg-blue-500/5 rounded-xl border border-blue-500/10">
+                         <span className="text-[10px] text-blue-500 font-bold uppercase block mb-1">Method</span>
+                         <p className="text-xs text-slate-300">{day.learn}</p>
                       </div>
-
-                      {isWeeklyReview && weekReview && (
-                        <div className="my-10 p-6 rounded-3xl bg-blue-600/5 border border-blue-500/10 break-inside-avoid print:bg-gray-100 print:border-gray-300 animate-fadeIn">
-                            <h3 className="text-lg font-bold text-blue-400 mb-5 flex items-center gap-2 print:text-black">
-                              <div className="p-1.5 bg-blue-500/10 rounded-lg"><Icons.Check /></div>
-                              Week {weekReview.week} Reflection
-                            </h3>
-                            <div className="flex flex-col gap-2">
-                              {weekReview.selfQuestions?.map((q: string, qi: number) => (
-                                <p key={qi} className="text-xs text-slate-400 italic">" {q} "</p>
-                              ))}
-                            </div>
-                        </div>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-            </div>
-
-            {/* Earning Guide Section */}
-            {generatedData.firstEarningGuide && (
-              <div className="mt-20 p-8 sm:p-10 rounded-[2.5rem] bg-slate-950/50 border border-green-500/20 break-inside-avoid print:bg-gray-50 print:border-gray-300 print:text-black">
-                  <div className="flex items-center gap-5 mb-10">
-                    <div className="w-16 h-16 rounded-2xl bg-green-500/10 flex items-center justify-center text-2xl text-green-500">💰</div>
-                    <div>
-                        <h3 className="text-2xl font-bold text-white print:text-black font-heading">First Earning</h3>
-                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em]">Ready around Day {generatedData.firstEarningGuide.readyAfterDays}</p>
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    <div className="text-sm text-slate-300">
-                      <span className="text-green-500 font-bold uppercase text-[9px] block mb-1">Pricing</span>
-                      {generatedData.firstEarningGuide.beginnerPricing}
-                    </div>
-                  </div>
-              </div>
-            )}
-
-            <div className="mt-16 pt-12 text-center border-t border-slate-900/50 print:border-gray-200">
-                <div className="text-[10px] font-bold text-pink-500 uppercase tracking-widest mb-4">Important Notice</div>
-                <p className="text-lg font-medium text-slate-300 italic mb-10 max-w-lg mx-auto leading-relaxed print:text-black">
-                  "{generatedData.finalNote || "Be patient, practice daily, and stay consistent."}"
-                </p>
+                ))}
             </div>
           </div>
         </div>

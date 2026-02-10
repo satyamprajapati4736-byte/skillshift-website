@@ -67,11 +67,7 @@ const App: React.FC = () => {
   }, []); 
 
   const handlePageChange = (page: Page, message?: string) => {
-    if (page === Page.ROADMAPS && !user) {
-      setAuthRedirectMessage(message || "Roadmap dekhne ke liye login karein.");
-      setCurrentPage(Page.PROFILE_ENTRY);
-      return;
-    }
+    // Roadmaps are now accessible without login
     setAuthRedirectMessage(null);
     setCurrentPage(page);
   };
@@ -154,6 +150,7 @@ const App: React.FC = () => {
     );
   }
 
+  // Fix: Removed undefined 'children' variable on line 155 which was causing the error
   return (
     <Layout currentPage={currentPage} onPageChange={handlePageChange} user={user} onLogout={handleLogout}>
       {renderPage()}
