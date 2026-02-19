@@ -3,9 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Icons, SKILLS } from '../constants';
 import { generateDetailedRoadmap } from '../services/geminiService';
 import { ProgressRing } from '../App';
-import { User, RoadmapRecord } from '../types';
-import { dbService } from '../services/dbService';
-import { sheetService } from '../services/sheetService';
 import { jsPDF } from 'jspdf';
 
 enum EngineState {
@@ -24,18 +21,12 @@ const QUESTIONS = [
   { key: 'goal', text: "Main goal kya hai? (Skill seekhna / First earning / Freelancing / Confidence)" }
 ];
 
-interface RoadmapsProps {
-  user: User | null;
-  onAuthRequired: (message?: string) => void;
-}
-
-const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
+const Roadmaps: React.FC = () => {
   const [state, setState] = useState<EngineState>(EngineState.INTRO);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [inputValue, setInputValue] = useState('');
   const [generatedData, setGeneratedData] = useState<any>(null);
-  const [activeRoadmapRecord, setActiveRoadmapRecord] = useState<RoadmapRecord | null>(null);
   const [chatHistory, setChatHistory] = useState<{ role: 'ai' | 'user', text: string }[]>([]);
   const [generationStep, setGenerationStep] = useState(0);
   const [downloading, setDownloading] = useState(false);
@@ -53,9 +44,13 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
   useEffect(() => {
     const cached = localStorage.getItem('skillshift_active_roadmap');
     if (cached) {
-      const data = JSON.parse(cached);
-      setGeneratedData(data);
-      setState(EngineState.PREVIEW);
+      try {
+        const data = JSON.parse(cached);
+        setGeneratedData(data);
+        setState(EngineState.PREVIEW);
+      } catch (e) {
+        localStorage.removeItem('skillshift_active_roadmap');
+      }
     }
   }, []);
 
@@ -85,22 +80,12 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
   }, [state]);
 
   const startEngine = () => {
-    // Bina login ke bhi chalega
     setState(EngineState.QUESTIONNAIRE);
     setChatHistory([{ role: 'ai', text: QUESTIONS[0].text }]);
   };
 
   const openLibrary = () => {
-    // Skill library is public now
     setState(EngineState.LIBRARY);
-  };
-
-  const syncToSheet = async (roadmapName: string) => {
-    if (!user) return; // Only sync if user is logged in
-    const res = await sheetService.syncToGoogleSheet(user, roadmapName);
-    if (res.success) {
-      setNotification({ show: true, message: "Your roadmap is saved.", type: 'success' });
-    }
   };
 
   const handleNewRoadmap = (roadmap: any) => {
@@ -115,15 +100,6 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
     const roadmap = await generateDetailedRoadmap(skillName);
     if (roadmap) {
       handleNewRoadmap(roadmap);
-      if (user) {
-        try {
-          const record = await dbService.saveRoadmap(user.id, roadmap);
-          setActiveRoadmapRecord(record);
-          await syncToSheet(roadmap.skillName);
-        } catch (e) {
-          console.warn("Guest roadmap not saved to DB");
-        }
-      }
     } else {
       setNotification({ show: true, message: "Engine stuck! Retry karein.", type: 'error' });
       setState(EngineState.INTRO);
@@ -153,15 +129,6 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
       const roadmap = await generateDetailedRoadmap(newAnswers);
       if (roadmap) {
         handleNewRoadmap(roadmap);
-        if (user) {
-          try {
-            const record = await dbService.saveRoadmap(user.id, roadmap);
-            setActiveRoadmapRecord(record);
-            await syncToSheet(roadmap.skillName);
-          } catch (e) {
-            console.warn("Guest roadmap not saved to DB");
-          }
-        }
       } else {
         setNotification({ show: true, message: "Failed to generate. Retry.", type: 'error' });
         setState(EngineState.INTRO);
@@ -202,7 +169,7 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
       doc.setFontSize(10);
       doc.setTextColor(100);
       doc.setFont("helvetica", "normal");
-      doc.text(`User: ${user ? user.name : "Guest Explorer"} | Goal: ${generatedData.userGoal}`, margin, y);
+      doc.text(`User: Explorer | Goal: ${generatedData.userGoal}`, margin, y);
       y += 15;
 
       // Overview
@@ -317,7 +284,7 @@ const Roadmaps: React.FC<RoadmapsProps> = ({ user, onAuthRequired }) => {
             <h2 className="text-3xl font-bold font-heading text-white">Roadmap Engine</h2>
             <p className="text-slate-400 text-sm leading-relaxed">
               Apna custom roadmap banao. <br/>
-              No login required. Bas chhota sa quiz aur tera path ready.
+              Ab koi login zaroori nahi. Bas quiz solve karo aur path ready.
             </p>
           </div>
 

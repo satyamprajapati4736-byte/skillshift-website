@@ -1,20 +1,24 @@
 
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, (process as any).cwd(), '');
-  // Netlify uses process.env for variables set in UI
-  const apiKey = process.env.API_KEY || env.API_KEY;
-
+// Fix: Removed loadEnv and process.cwd() usage which was causing a TypeScript error.
+// Adhering to the @google/genai guidelines: process.env.API_KEY is assumed to be 
+// pre-configured and accessible in the execution context. We must not manually define 
+// process.env or manage the API_KEY within the application configuration.
+export default defineConfig(() => {
   return {
     plugins: [react()],
-    define: {
-      'process.env.API_KEY': JSON.stringify(apiKey || ''),
-    },
     build: {
       outDir: 'dist',
-      sourcemap: false
+      sourcemap: false,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', 'firebase/app', 'firebase/auth', 'firebase/firestore'],
+          },
+        },
+      },
     }
   };
 });

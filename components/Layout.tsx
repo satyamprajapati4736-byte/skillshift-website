@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Page, User } from '../types';
+import { Page } from '../types';
 import { Icons } from '../constants';
 import FeedbackModal from './FeedbackModal';
 
@@ -8,11 +8,9 @@ interface LayoutProps {
   children: React.ReactNode;
   currentPage: Page;
   onPageChange: (page: Page) => void;
-  user: User | null;
-  onLogout: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageChange, user, onLogout }) => {
+const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageChange }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
   const navItems = [
@@ -25,7 +23,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageChange, us
 
   return (
     <div className="flex flex-col min-h-screen max-w-md mx-auto relative shadow-2xl bg-slate-950 overflow-hidden border-x border-slate-800">
-      {/* Top Header */}
+      {/* Top Header - Minimal version without login */}
       <header className="h-20 px-6 flex items-center justify-between border-b border-slate-800 sticky top-0 bg-slate-950/90 backdrop-blur-xl z-[60]">
         <h1 
           className="text-2xl font-bold font-heading text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-pink-500 cursor-pointer"
@@ -33,32 +31,10 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageChange, us
         >
           SkillShift
         </h1>
-        <div className="flex items-center gap-3">
-           {user ? (
-             <div className="flex items-center gap-3">
-                <div className="flex flex-col items-end">
-                   <div className="flex items-center gap-1.5">
-                     <span className="text-xs text-slate-200 font-bold leading-tight">Hi, {user.name.split(' ')[0]}</span>
-                   </div>
-                   <button 
-                     onClick={onLogout}
-                     className="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-red-400 transition-colors"
-                   >
-                     Exit
-                   </button>
-                </div>
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-pink-600 flex items-center justify-center text-xs font-bold text-white shadow-lg">
-                  {user.name[0]}
-                </div>
-             </div>
-           ) : (
-             <button 
-              onClick={() => onPageChange(Page.PROFILE_ENTRY)}
-              className="px-4 py-2 bg-blue-600/10 text-blue-400 border border-blue-500/30 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-blue-600/20 transition-all"
-             >
-               Join Now
-             </button>
-           )}
+        <div className="flex items-center gap-2">
+           <div className="w-8 h-8 rounded-full bg-blue-600/10 flex items-center justify-center text-blue-500 shadow-lg border border-blue-500/20">
+             <Icons.Zap />
+           </div>
         </div>
       </header>
 

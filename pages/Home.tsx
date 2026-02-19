@@ -1,28 +1,25 @@
 
 import React from 'react';
-import { Page, User } from '../types';
+import { Page } from '../types';
 import { Icons } from '../constants';
 
 interface HomeProps {
   onNavigate: (page: Page) => void;
-  user: User | null;
 }
 
-const Home: React.FC<HomeProps> = ({ onNavigate, user }) => {
+const Home: React.FC<HomeProps> = ({ onNavigate }) => {
   return (
     <div className="flex flex-col gap-10 animate-fadeIn">
       {/* Hero Section */}
       <div className="flex flex-col gap-4 mt-8">
-        <span className="text-blue-400 font-medium tracking-widest text-xs uppercase">Welcome to the future</span>
+        <span className="text-blue-400 font-medium tracking-widest text-xs uppercase">Unlock Your Potential</span>
         <h2 className="text-4xl font-bold font-heading leading-tight">
-          {user ? (
-            <>Hi {user.name.split(' ')[0]},<br /> <span className="text-pink-500">Ready to level up?</span></>
-          ) : (
-            <>Confused ho?<br /><span className="text-pink-500">Tum akela nahi ho.</span><br />Start yahin se.</>
-          )}
+          Hi Explorer,<br />
+          <span className="text-pink-500">Confused ho?</span><br />
+          Tum akele nahi ho.
         </h2>
         <p className="text-slate-400 leading-relaxed text-sm max-w-[90%]">
-          Bas apni situation likho. Hamara intelligent AI tumhein next clear practical step batayega. No judgment, only help.
+          Bas apni situation likho. Hamara intelligent AI tumhein next clear practical step batayega. No login, no judgment, only help.
         </p>
       </div>
 
