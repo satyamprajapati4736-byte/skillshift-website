@@ -3,8 +3,16 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SkillShift - Find Your Skill. Fix Your Life.</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#020617">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3050/3050525.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet">
     <style>
@@ -13,6 +21,12 @@
             background-color: #020617;
             color: #f8fafc;
             overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        /* PWA specific safe areas for iPhone */
+        .pb-safe-area-inset-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
         }
         .font-heading {
             font-family: 'Space+Grotesk', sans-serif;
@@ -29,14 +43,7 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
         ::-webkit-scrollbar {
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #020617;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 10px;
+            width: 0px; /* Hide scrollbar for cleaner app look */
         }
         @keyframes float {
             0% { transform: translateY(0px); }
@@ -45,20 +52,6 @@
         }
         .float-animation {
             animation: float 4s ease-in-out infinite;
-        }
-        @keyframes spin-slow {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        @keyframes spin-reverse-slow {
-            from { transform: rotate(360deg); }
-            to { transform: rotate(0deg); }
-        }
-        .animate-spin-slow {
-            animation: spin-slow 12s linear infinite;
-        }
-        .animate-spin-reverse-slow {
-            animation: spin-reverse-slow 20s linear infinite;
         }
     </style>
 <script type="importmap">
@@ -79,5 +72,13 @@
 <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+      // Register Service Worker for PWA
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW failed', err));
+        });
+      }
+    </script>
 </body>
 </html>
