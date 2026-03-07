@@ -1,20 +1,49 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# SkillShift - Local Hosting Guide
 
-# Run and deploy your AI Studio app
+This guide explains how to run the SkillShift application on your local machine.
 
-This contains everything you need to run your app locally.
+## Prerequisites
 
-View your app in AI Studio: https://ai.studio/apps/drive/1ZXsZ6QUULoDVTWmTwUKI5M9KqGM_sLeG
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- [npm](https://www.npmjs.com/) (comes with Node.js)
 
-## Run Locally
+## Setup Instructions
 
-**Prerequisites:**  Node.js
+1.  **Clone the repository** (or download the source code).
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
+3.  **Configure Environment Variables**:
+    - Copy the `.env.example` file to a new file named `.env`:
+      ```bash
+      cp .env.example .env
+      ```
+    - Open the `.env` file and add your **Gemini API Key**:
+      ```env
+      VITE_GEMINI_API_KEY=your_actual_api_key_here
+      ```
+    - (Optional) Update the Firebase configuration if you want to use your own Firebase project.
 
+4.  **Run the development server**:
+    ```bash
+    npm run dev
+    ```
+5.  **Access the app**:
+    Open your browser and navigate to `http://localhost:3000` (or the port shown in your terminal).
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Building for Production
+
+To create a production-ready build:
+```bash
+npm run build
+```
+The output will be in the `dist/` folder.
+
+## Technologies Used
+
+- **React 19**
+- **Vite**
+- **Tailwind CSS**
+- **Firebase** (Auth & Firestore)
+- **Google Gemini AI** (@google/genai)

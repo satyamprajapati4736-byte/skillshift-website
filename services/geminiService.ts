@@ -117,8 +117,9 @@ Return ONLY valid JSON. No explanation. No markdown. No SMS sending.
 // Initialize Gemini with the API key from process.env as per guidelines
 export const sendMessageToMentor = async (history: ChatMessage[]): Promise<string> => {
   try {
-    // Guidelines: Always use new GoogleGenAI({ apiKey: process.env.API_KEY })
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Guidelines: Always use new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
+    const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || import.meta.env.VITE_GEMINI_API_KEY;
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     const contents = history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.text }]
@@ -144,7 +145,8 @@ export const sendMessageToMentor = async (history: ChatMessage[]): Promise<strin
 // Roadmaps generation is a complex reasoning task, using gemini-3-pro-preview
 export const generateDetailedRoadmap = async (profile: any): Promise<any> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || import.meta.env.VITE_GEMINI_API_KEY;
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     
     // Construct a more specific prompt if it's just a skill choice
     const prompt = typeof profile === 'string' 
@@ -169,7 +171,8 @@ export const generateDetailedRoadmap = async (profile: any): Promise<any> => {
 
 export const processOTPLogic = async (action: 'GENERATE' | 'VERIFY', data: any): Promise<any> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || import.meta.env.VITE_GEMINI_API_KEY;
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     const prompt = action === 'GENERATE' 
       ? "Generate a new 6-digit OTP for a login session." 
       : `Verify if this OTP: ${data.inputOTP} matches the stored hash/code: ${data.storedCode}.`;
